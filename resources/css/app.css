@@ -1,0 +1,36 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+    h1 { @apply font-head text-primary dark:text-white; }
+    h2 { @apply font-main font-black text-primary dark:text-white; }
+    h3 { @apply font-head font-normal text-left text-xl md:text-2xl text-primary dark:text-white; }
+    h4 { @apply font-head font-black text-left text-8xl uppercase text-primary dark:text-accent; }
+    h5 { @apply font-main text-lg text-primary dark:text-white; }
+    p  { @apply font-main text-sm text-gray-600 dark:text-gray-300; }
+    li { @apply font-normal text-xl; }
+}
+
+/* ---- Design tokens (colors, fonts, breakpoints) ---- */
+@theme {
+    /* colors */
+    --color-dark: #442313;
+    --color-primary: #ffffff;
+    --color-accent: #F9CEB0;
+
+
+    /* fonts */
+    --font-head: proxima-nova, sans-serif;
+    --font-main: proxima-nova, sans-serif;
+
+    /* breakpoints */
+    --breakpoint-sm: 375px;
+    --breakpoint-smW: 700px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 1024px;
+    --breakpoint-xl: 1280px;
+    --breakpoint-2xl: 1536px;
+    --breakpoint-3xl: 1800px;
+    --breakpoint-qhd: 2560px;
+    --breakpoint-4k: 3840px;
+}
