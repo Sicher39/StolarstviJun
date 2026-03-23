@@ -25,8 +25,8 @@ const isActive = computed(() => {
 </script>
 
 <template>
-  <Link :href="props.link" class="inline-flex items-center py-1">
-    <p class="text-sm" :class="isActive ? 'text-primary dark:text-darkAccent decoration-primary dark:decoration-darkAccent underline' : 'text-gray-600 dark:text-gray-400 hover:text-primary hover:underline hover:decoration-primary dark:hover:text-darkAccent'">
+  <Link :href="props.link" class="inline-flex items-center py-1  underline-offset-4">
+    <p class="text-sm" :class="isActive ? 'text-accent decoration-accent underline ' : 'text-primary hover:text-accent hover:underline hover:decoration-accent'">
       {{ props.title }}
     </p>
   </Link>

@@ -1,27 +1,27 @@
 @import "tailwindcss";
-@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
-    h1 { @apply font-head text-primary dark:text-white; }
-    h2 { @apply font-main font-black text-primary dark:text-white; }
-    h3 { @apply font-head font-normal text-left text-xl md:text-2xl text-primary dark:text-white; }
-    h4 { @apply font-head font-black text-left text-8xl uppercase text-primary dark:text-accent; }
-    h5 { @apply font-main text-lg text-primary dark:text-white; }
-    p  { @apply font-main text-sm text-gray-600 dark:text-gray-300; }
+    h1 { @apply font-head text-primary; }
+    h2 { @apply font-main font-thin text-primary; }
+    h3 { @apply font-head font-normal text-left text-xl md:text-2xl text-primary; }
+    h4 { @apply font-head font-black text-left text-8xl uppercase text-primary; }
+    h5 { @apply font-main text-lg text-primary; }
+    p  { @apply font-main font-thin text-xl text-primary; }
     li { @apply font-normal text-xl; }
 }
 
 /* ---- Design tokens (colors, fonts, breakpoints) ---- */
 @theme {
     /* colors */
-    --color-dark: #442313;
+    --color-dark: #351a0c;
     --color-primary: #ffffff;
-    --color-accent: #F9CEB0;
-
+    --color-accent: #fbbd83;
+    --color-lightDark: #703D20;
+    --color-red: #941101;
 
     /* fonts */
-    --font-head: proxima-nova, sans-serif;
-    --font-main: proxima-nova, sans-serif;
+    --font-head: the-seasons, sans-serif;
+    --font-main: apparat-light, sans-serif;
 
     /* breakpoints */
     --breakpoint-sm: 375px;
@@ -34,3 +34,5 @@
     --breakpoint-qhd: 2560px;
     --breakpoint-4k: 3840px;
 }
+
+@utility bg-3xlIndex { background-image: url("/img/bg/01/red-door.png"); }

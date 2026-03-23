@@ -52,18 +52,18 @@ const handleEmailClick = () => {
 
 <template>
   <div class="mt-5 w-full">
-    <p class="text-primary dark:text-gray-200 text-lg">
+    <p class="text-primary text-lg">
       {{ props.position }}
     </p>
 
-    <p v-if="props.phone" class="text-primary dark:text-gray-200 text-xl">
+    <p v-if="props.phone" class="text-primary text-xl">
       tel:
       <a :href="`tel:${props.phone}`">
         {{ props.phone }}
       </a>
     </p>
 
-    <p v-if="props.email" class="text-primary dark:text-gray-200 text-xl">
+    <p v-if="props.email" class="text-primary text-xl">
       e-mail:
       <button
         type="button"

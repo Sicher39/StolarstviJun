@@ -17,7 +17,7 @@ const props = withDefaults(
     widthVertically: 'w-[1px] group-hover:z-30',
     heightVertically: 'h-[10px] group-hover:z-30',
     animation: 'opacity-100 group-hover:opacity-100 transition-all  duration-[1s,10s] ',
-    background: 'bg-primary group-hover:bg-dark dark:group-hover:bg-darkAccent',
+    background: 'bg-primary group-hover:bg-dark',
     label: ''
   }
 )
@@ -134,7 +134,7 @@ const bottomRightVerticallyClass = computed(() =>
 
     <div
       :class="[
-        'absolute top-0 left-0 h-full w-0 opacity-0 group-hover:opacity-100 group-hover:w-full transition-all duration-700 bg-white group-hover:bg-primary/80 dark:bg-primary'
+        'absolute top-0 left-0 h-full w-0 opacity-0 group-hover:opacity-100 group-hover:w-full transition-all duration-700 bg-white group-hover:bg-primary/80'
       ]"
     ></div>
 
@@ -142,7 +142,7 @@ const bottomRightVerticallyClass = computed(() =>
     <div class="relative z-10 px-4 flex items-center justify-center ">
       <label
         :class="[
-          'uppercase text-sm smW:text-xs lg:text-lg font-bold text-primary dark:text-darkAccent group-hover:text-white dark:group-hover:text-white transition-all duration-700'
+          'uppercase text-sm smW:text-xs lg:text-lg font-bold text-primary group-hover:text-white transition-all duration-700'
         ]"
       >
         zobrazit

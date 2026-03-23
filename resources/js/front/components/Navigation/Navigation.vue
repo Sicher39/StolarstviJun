@@ -1,14 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import NavigationItem from './NavigationItem.vue'
-import { Link, usePage } from '@inertiajs/vue3'
+import { Link } from '@inertiajs/vue3'
 import ButtonLabel from '@/front/components/Buttons/ButtonLabel.vue'
-
-type NavLink = {
-  title: string
-  link: string
-  route: string
-}
+import { navLinks } from '@/front/components/Navigation/NavLinks'
 
 const open = ref(false)
 const menuOpen = () => {
@@ -50,34 +45,6 @@ let searchTimer: number | null = null
 const hasResults = computed(() => {
   return results.value.products.length > 0 || results.value.labels.length > 0
 })
-
-type ThemeMode = 'light' | 'dark'
-const themeMode = ref<ThemeMode>('light')
-const isDarkTheme = computed(() => themeMode.value === 'dark')
-const page = usePage()
-
-const applyTheme = (mode: ThemeMode) => {
-  themeMode.value = mode
-  const root = document.documentElement
-  root.classList.toggle('dark', mode === 'dark')
-  root.style.colorScheme = mode
-  localStorage.setItem('theme', mode)
-}
-
-const initTheme = () => {
-  const storedTheme = localStorage.getItem('theme')
-  if (storedTheme === 'light' || storedTheme === 'dark') {
-    applyTheme(storedTheme)
-    return
-  }
-
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  applyTheme(prefersDark ? 'dark' : 'light')
-}
-
-const toggleTheme = () => {
-  applyTheme(isDarkTheme.value ? 'light' : 'dark')
-}
 
 const clearResults = () => {
   results.value = { products: [], products_total: 0, labels: [] }
@@ -144,11 +111,11 @@ const handleKeydown = (event: KeyboardEvent) => {
 }
 
 onMounted(() => {
-  initTheme()
   handleScroll()
   window.addEventListener('scroll', handleScroll)
   window.addEventListener('keydown', handleKeydown)
 })
+
 onUnmounted(() => {
   if (searchTimer) {
     window.clearTimeout(searchTimer)
@@ -157,83 +124,35 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
 
-const links = computed(() => {
-  return (page.props.navLinks ?? []) as NavLink[]
-})
 </script>
 
 <template>
-  <div
-    class="block w-full"
-    :class="[open ? 'bg-primary dark:bg-dark' : 'bg-primary dark:bg-dark/70']"
-  >
+  <div class="block w-full">
     <nav
-      class="flex w-full justify-center px-1 md:px-4 xl:px-0"
-      :class="[
-        scrolledFromTop ? 'bg-primary dark:bg-dark/60 backdrop-blur' : 'bg-primary dark:bg-dark/60'
-      ]"
+      class="flex w-full justify-center items-center  px-1 md:px-4 xl:px-0"
+      :class="[scrolledFromTop ? 'bg-dark/50 backdrop-blur' : ' ']"
     >
-      <div class="flex justify-between w-full px-5 2xl:w-9/12 xl:w-12/12">
-        <!-- logo -->
-        <Link href="/" class="flex justify-center cursor-pointer px-2 md:px-0 md:pr-2 my-1">
+      <div class="flex justify-between w-full px-5 lg:px-10">
+        <Link href="/" class="flex justify-center cursor-pointer px-2 md:px-0 md:pr-2 ">
           <img
-            :src="`/img/logo/mira-color-path.svg`"
-            class="z-50 transition-all ease-out duration-700 py-1"
-            :class="[scrolledFromTop ? 'w-[50px] smW:w-[60px] ' : 'w-[60px] smW:w-[80px]']"
-            alt="logo Furies"
+            :src="`/img/logo/stolarstvi-jun-temp.webp`"
+            class="z-50 transition-all ease-out duration-700 my-1"
+            :class="[scrolledFromTop ? 'w-[100px] smW:w-[100px]' : 'w-[100px] smW:w-[100px]']"
+            alt="logo"
             aria-label="logo"
             width="150"
             height="150"
           />
         </Link>
 
-        <!-- desktop menu -->
-        <div class="hidden lg:flex w-full justify-end items-center space-x-4">
+        <div class="hidden lg:flex w-full justify-end items-center">
           <NavigationItem
-            v-for="(link, index) in links"
+            v-for="(link, index) in navLinks"
             :key="index"
             :link="link.link"
             :title="link.title"
             :route-link="link.route"
           />
-
-          <button
-            type="button"
-            class="text-white hover:text-lightBrow transition"
-            :aria-label="isDarkTheme ? 'Zapnout světlý režim' : 'Zapnout tmavý režim'"
-            @click="toggleTheme"
-          >
-            <svg
-              v-if="!isDarkTheme"
-              xmlns="http://www.w3.org/2000/svg"
-              class="w-6 h-6"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.598.748-3.752A9.753 9.753 0 0 0 2.25 11.25c0 5.385 4.365 9.75 9.75 9.75a9.753 9.753 0 0 0 9.752-5.998Z"
-              />
-            </svg>
-            <svg
-              v-else
-              xmlns="http://www.w3.org/2000/svg"
-              class="w-6 h-6"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"
-              />
-            </svg>
-          </button>
 
           <button
             type="button"
@@ -260,45 +179,7 @@ const links = computed(() => {
           </button>
         </div>
 
-        <!-- mobile icons -->
-        <div class="flex items-center lg:hidden text-white space-x-3">
-          <button
-            type="button"
-            :aria-label="isDarkTheme ? 'Zapnout světlý režim' : 'Zapnout tmavý režim'"
-            @click="toggleTheme"
-          >
-            <svg
-              v-if="!isDarkTheme"
-              xmlns="http://www.w3.org/2000/svg"
-              class="w-7 h-7"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.598.748-3.752A9.753 9.753 0 0 0 2.25 11.25c0 5.385 4.365 9.75 9.75 9.75a9.753 9.753 0 0 0 9.752-5.998Z"
-              />
-            </svg>
-            <svg
-              v-else
-              xmlns="http://www.w3.org/2000/svg"
-              class="w-7 h-7"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"
-              />
-            </svg>
-          </button>
-
+        <div class="flex items-center lg:hidden text-white space-x-3 ">
           <button
             type="button"
             aria-label="Open search"
@@ -352,7 +233,6 @@ const links = computed(() => {
       </div>
     </nav>
 
-    <!-- search overlay -->
     <div
       v-if="searchOpen"
       class="fixed inset-0 z-50 flex items-start justify-center bg-dark/70 backdrop-blur overflow-y-auto"
@@ -425,10 +305,9 @@ const links = computed(() => {
               v-if="results.products_total > results.products.length"
               class="text-white border-t border-white text-sm py-2"
             >
-              <span
-                >Zobrazeno {{ results.products.length }} z
-                {{ results.products_total }} produktů.</span
-              >
+              <span>
+                Zobrazeno {{ results.products.length }} z {{ results.products_total }} produktů.
+              </span>
               <div class="block mt-5">
                 <Link
                   :href="routeHelper('front.searchIndex', { q: searchQuery.trim() })"
@@ -446,7 +325,6 @@ const links = computed(() => {
       </div>
     </div>
 
-    <!-- mobile menu -->
     <div
       id="mobile-menu"
       :aria-hidden="!open"
@@ -458,7 +336,7 @@ const links = computed(() => {
       <div class="block">
         <div class="grid grid-cols-1 pt-5 gap-4">
           <NavigationItem
-            v-for="(link, index) in links"
+            v-for="(link, index) in navLinks"
             :key="index"
             :link="link.link"
             :route-link="link.route"

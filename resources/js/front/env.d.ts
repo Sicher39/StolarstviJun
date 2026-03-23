@@ -8,6 +8,12 @@ declare module '*.vue' {
     export default component;
 }
 
+declare module '*.css' {
+    const content: string;
+
+    export default content;
+}
+
 declare global {
     function route(...args: unknown[]): any;
 }

@@ -8,25 +8,6 @@ use Inertia\Middleware;
 class HandleInertiaRequests extends Middleware
 {
     /**
-     * @return array<int, array{title: string, link: string, route: string}>
-     */
-    protected function navLinks(): array
-    {
-        return [
-            [
-                'title' => 'Uvod',
-                'link' => route('front.index'),
-                'route' => 'front.index',
-            ],
-            [
-                'title' => 'GDPR',
-                'link' => route('front.gdpr'),
-                'route' => 'front.gdpr',
-            ],
-        ];
-    }
-
-    /**
      * The root template that's loaded on the first page visit.
      *
      * @see https://inertiajs.com/server-side-setup#root-template
@@ -56,7 +37,6 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            'navLinks' => fn (): array => $this->navLinks(),
             'openingHours' => fn (): array => [],
             'socialIcon' => fn (): array => [],
             'footerContacts' => fn (): array => [],

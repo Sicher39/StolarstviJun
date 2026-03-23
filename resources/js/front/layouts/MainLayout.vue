@@ -4,12 +4,12 @@ import Navigation from '@/front/components/Navigation/Navigation.vue'
 </script>
 
 <template>
-  <div class="block w-full bg-dark">
+  <div class="block w-full bg-dark ">
     <header class="z-20 fixed w-full">
       <Navigation />
     </header>
 
-    <div class="z-0">
+    <div class="z-0 w-full">
       <slot />
     </div>
 

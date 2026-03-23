@@ -6,12 +6,7 @@ import { usePage } from '@inertiajs/vue3'
 import FooterMenuItem from '@/front/components/Footer/FooterMenuItem.vue'
 import SocialIcon from '@/front/components/SocialIcons/SocialIcon.vue'
 import FooterPersonalContact from '@/front/components/Contacts/FooterPersonalContact.vue'
-
-type NavLink = {
-  title: string
-  link: string
-  route: string
-}
+import { navLinks } from '@/front/components/Navigation/NavLinks'
 
 interface Props {
   build?: number
@@ -19,8 +14,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  build: 2009,
-  company: 'MIRA elektromontážní s.r.o.'
+  build: 2003,
+  company: 'Jun a synové s.r.o.'
 })
 
 const { build, company } = props
@@ -29,10 +24,6 @@ const year = computed(() => new Date().getFullYear())
 const page = usePage()
 const openingHours = computed(() => {
   return page.props.openingHours as any[]
-})
-
-const links = computed(() => {
-  return (page.props.navLinks ?? []) as NavLink[]
 })
 
 const socialIcon = computed(() => {
@@ -45,7 +36,7 @@ const footerContacts = computed(() => {
 </script>
 
 <template>
-  <div class="block border-t border-primary dark:border-darkAccent bg-gray-200 dark:bg-dark w-full">
+  <div class="block border-t  w-full">
     <div class="block w-full pb-10 pt-10">
       <FlexSection>
         <!-- Textový obsah nad obrázkem -->
@@ -56,12 +47,10 @@ const footerContacts = computed(() => {
             <!--            main footer-->
             <div class="block order-3 lg:order-1">
               <div v-if="Array.isArray(footerContacts) && footerContacts.length" class="block">
-                <p
-                  class="text-primary dark:text-white font-thin text-xl leading-tight"
-                >
+                <p class="text-primary font-thin text-xl leading-tight">
                   Rychlý kontakt:
                 </p>
-                <div class="border-b border-primary dark:text-white w-20"></div>
+                <div class="border-b border-primary w-20"></div>
                 <FooterPersonalContact
                   v-for="(person, index) in footerContacts"
                   :key="index"
@@ -70,10 +59,10 @@ const footerContacts = computed(() => {
               </div>
 
               <div v-if="Array.isArray(socialIcon) && socialIcon.length" class="block mt-10">
-                <p class="text-primary dark:text-gray-200 font-thin text-xl leading-tight">
+                <p class="text-primary font-thin text-xl leading-tight">
                   Sociální sítě:
                 </p>
-                <div class="border-b border-primary dark:text-white w-20"></div>
+                <div class="border-b border-primary w-20"></div>
                 <div
                   class="flex flex-wrap w-full justify-start py-3 gap-3"
                 >
@@ -83,17 +72,17 @@ const footerContacts = computed(() => {
 
               <div class="hidden lg:block mt-5">
                 <p
-                  class="font-main font-normal text-sm text-primary dark:text-gray-300 text-center lg:text-left"
+                  class="font-main font-normal text-sm text-primary text-center lg:text-left"
                 >
                   <span v-if="build === year">&copy; {{ year }} {{ company }}</span>
                   <span v-else>&copy; {{ build }}–{{ year }} {{ company }}</span>
                 </p>
                 <p
-                  class="font-main font-normal text-primary dark:text-white text-center lg:text-left text-[16px] pb-5 mt-2"
+                  class="font-main font-normal text-primary text-center lg:text-left text-[16px] pb-5 mt-2"
                 >
                   <a href="/ochrana-osobnich-udaju">
                     <span
-                      class="text-primary dark:text-white hover:underline decoration-light underline-offset-2 text-[14px]"
+                      class="text-primary hover:underline decoration-light underline-offset-2 text-[14px]"
                     >
                       <br />podmínky ochrany osobních údajů
                     </span>
@@ -104,11 +93,11 @@ const footerContacts = computed(() => {
 
             <!-- menu items -->
             <div class="block h-full order-3 lg:order-2">
-              <p class="text-primary dark:text-gray-200 font-thin text-xl leading-tight">Menu:</p>
+              <p class="text-primary font-thin text-xl leading-tight">Menu:</p>
               <div class="border-b text-primary  w-20"></div>
               <div class="grid grid-cols-1 w-full mt-5">
                 <FooterMenuItem
-                  v-for="(link, index) in links"
+                  v-for="(link, index) in navLinks"
                   :key="index"
                   :link="link.link"
                   :title="link.title"
@@ -120,7 +109,7 @@ const footerContacts = computed(() => {
             <!-- Contact and opening hours -->
             <div class="block h-full order-1 lg:order-3">
               <div v-if="Array.isArray(openingHours) && openingHours.length" class="block w-full">
-                <p class="text-primary dark:text-gray-200 font-thin text-xl leading-tight">
+                <p class="text-primary font-thin text-xl leading-tight">
                   Provozní doba:
                 </p>
                 <div class="border-b text-primary w-20"></div>
@@ -132,13 +121,13 @@ const footerContacts = computed(() => {
 
             <div class="block lg:hidden order-4">
               <p
-                class="font-main font-normal text-sm lg:text-lg xl:text-xl text-primary dark:text-white text-left"
+                class="font-main font-normal text-sm lg:text-lg xl:text-xl text-primary text-left"
               >
                 <span v-if="build === year">&copy; {{ year }} {{ company }}</span>
                 <span v-else>&copy; {{ build }}–{{ year }} {{ company }}</span>
               </p>
               <p
-                class="font-main font-normal text-primary dark:text-white text-left text-[16px] pb-5 mt-2"
+                class="font-main font-normal text-primary text-left text-[16px] pb-5 mt-2"
               >
                 <a href="/ochrana-osobnich-udaju">
                   <span

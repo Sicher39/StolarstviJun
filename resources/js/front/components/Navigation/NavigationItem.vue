@@ -34,31 +34,36 @@ const isActive = computed(() => {
 </script>
 
 <template>
-  <Link :href="props.link" class="inline-flex items-center min-h-[44px] px-5 lg:px-0">
-    <div class="relative group">
-      <div
-        class="absolute -bottom-1 left-0 w-0 h-[1px]"
-        :class="[
-          isActive
-            ? 'w-full bg-gradient-to-r from-primary dark:from-dark via-darkAccent/80 to-darkAccent'
-            : 'text w-full group-hover:bg-gradient-to-r group-hover:from-dark/0 group-hover:via-accent/80 group-hover:to-accent group-hover:transition-all group-hover:ease-out group-hover:duration-700'
-        ]"
-      ></div>
-
-      <div class="flex justify-end items-start text w-full">
+  <Link :href="props.link" class="inline-flex items-center min-h-[44px] ">
+    <div class="block group">
+      <div class="flex justify-start items-start text w-full px-2">
         <p
-          class="duration-700 font-normal text-right md:text-center "
-          :class="[
+            :class="['duration-700 font-light text-right md:text-center',
             scrolledFromTop
-              ? 'text-sm lg:text-sm'
-              : 'text-sm lg:text-sm'
+              ? 'text-lg'
+              : 'text-lg'
           ]"
         >
-          <span :class="[isActive ? 'text-darkAccent' : 'text-white group-hover:text-darkAccent']">
+          <span :class="[isActive ? 'text-accent' : 'text-white group-hover:text-accent']">
             {{ props.title }}
           </span>
         </p>
       </div>
+      <div class="flex justify-center w-full">
+        <div
+            :class="[ 'block',
+          isActive
+            ? 'w-[2px] h-[10px] bg-accent'
+            : 'w-[2px] h-[10px] bg-red group-hover:bg-accent group-hover:transition-all group-hover:ease-out group-hover:duration-700'
+        ]"
+        />
+      </div>
+      <div :class="['flex justify-center w-full h-[2px]  group-hover:transition-all group-hover:ease-out group-hover:duration-700 ',
+          isActive
+          ? 'bg-accent'
+          : 'bg-red group-hover:bg-accent'
+          ]"
+      />
     </div>
   </Link>
 </template>

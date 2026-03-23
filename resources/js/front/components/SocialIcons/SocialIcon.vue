@@ -40,7 +40,7 @@ const resolvedUrl = computed(() => {
 
 <template>
   <div v-if="iconComponent[resolvedIcon] && resolvedUrl" class="block">
-    <div class="w-[44px] text-gray-600 dark:text-white hover:text-primary hover:dark:text-darkAccent">
+    <div class="w-[44px] text-gray-600 hover:text-primary">
       <a :href="resolvedUrl" target="_blank" rel="noopener noreferrer">
         <component :is="iconComponent[resolvedIcon]" />
       </a>
