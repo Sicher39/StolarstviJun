@@ -3,9 +3,9 @@ import { Head } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import { nbspText } from '@/front/utils/czechTypography'
 
-const DEFAULT_SITE_SUFFIX = ' | MIRA elektromontážní Brno'
-const DEFAULT_OG_IMAGE = 'https://mirabrno.cz/img/mira-brno.jpg'
-const DEFAULT_SITE_NAME = 'MIRA elektromontážní Brno'
+const DEFAULT_SITE_SUFFIX = ' | Stolařství Jun a synové'
+const DEFAULT_OG_IMAGE = 'https://'
+const DEFAULT_SITE_NAME = ''
 
 export interface SeoProps {
   title: string
@@ -35,7 +35,7 @@ const props = withDefaults(defineProps<SeoProps>(), {
 
 const fullTitle = computed(() => {
   const title = nbspText(props.title)
-  return title.includes('MIRA')
+  return title.includes('Stolařství Jun')
     ? title
     : title + DEFAULT_SITE_SUFFIX
 })

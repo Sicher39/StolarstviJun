@@ -127,17 +127,17 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="block w-full">
+  <div class="flex justify-center w-full">
     <nav
-      class="flex w-full justify-center items-center  px-1 md:px-4 xl:px-0"
+      class="flex w-full justify-center items-center  px-1 md:px-4 xl:px-0 max-w-480"
       :class="[scrolledFromTop ? 'bg-dark/50 backdrop-blur' : ' ']"
     >
       <div class="flex justify-between w-full px-5 lg:px-10">
         <Link href="/" class="flex justify-center cursor-pointer px-2 md:px-0 md:pr-2 ">
           <img
-            :src="`/img/logo/stolarstvi-jun-temp.webp`"
+            :src="`/img/logo/COL-stolarstvi-jun.svg`"
             class="z-50 transition-all ease-out duration-700 my-1"
-            :class="[scrolledFromTop ? 'w-[100px] smW:w-[100px]' : 'w-[100px] smW:w-[100px]']"
+            :class="[scrolledFromTop ? 'w-[100px] smW:w-[100px]' : 'w-[100px] smW:w-[150px]']"
             alt="logo"
             aria-label="logo"
             width="150"
@@ -156,7 +156,7 @@ onUnmounted(() => {
 
           <button
             type="button"
-            class="text-white hover:text-lightBrow transition"
+            class="text-white hover:text-lightBrow transition pl-5"
             aria-label="Open search"
             aria-controls="search-dialog"
             :aria-expanded="searchOpen"

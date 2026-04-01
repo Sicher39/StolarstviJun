@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-export {};
+
 
 declare module '*.vue' {
     const component: any;
@@ -14,6 +14,4 @@ declare module '*.css' {
     export default content;
 }
 
-declare global {
-    function route(...args: unknown[]): any;
-}
+declare function route(...args: unknown[]): any;

@@ -4,8 +4,8 @@ import Navigation from '@/front/components/Navigation/Navigation.vue'
 </script>
 
 <template>
-  <div class="block w-full bg-dark ">
-    <header class="z-20 fixed w-full">
+  <div class="w-full bg-dark ">
+    <header class="z-40 fixed w-full">
       <Navigation />
     </header>
 
@@ -13,7 +13,7 @@ import Navigation from '@/front/components/Navigation/Navigation.vue'
       <slot />
     </div>
 
-    <div>
+    <div class="">
       <Footer />
     </div>
   </div>

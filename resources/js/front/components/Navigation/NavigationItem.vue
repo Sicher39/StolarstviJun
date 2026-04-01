@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
+import Triangle from "@/front/components/Icons/Triangle.vue";
 
 const scrolledFromTop = ref(false)
 const handleScroll = () => {
@@ -50,8 +51,12 @@ const isActive = computed(() => {
         </p>
       </div>
       <div class="flex justify-center w-full">
+        <Triangle :class="['-rotate-90 -mb-[4px] group-hover:transition-all group-hover:ease-out group-hover:duration-700',
+        isActive ? 'text-accent' : 'text-red group-hover:text-accent'
+        ]"
+        />
         <div
-            :class="[ 'block',
+            :class="[ 'block hidden',
           isActive
             ? 'w-[2px] h-[10px] bg-accent'
             : 'w-[2px] h-[10px] bg-red group-hover:bg-accent group-hover:transition-all group-hover:ease-out group-hover:duration-700'
