@@ -15,8 +15,8 @@ type VerticalScrollLineProps = {
 
 const props = withDefaults(defineProps<VerticalScrollLineProps>(), {
   targetSelector: '',
-  start: 'top bottom-=33%',
-  end: 'bottom bottom-=33%',
+  start: 'top bottom-=20%',
+  end: 'bottom bottom-=10%',
   scrub: true,
   observeResize: true,
   containerClass: 'relative h-full w-px overflow-hidden',

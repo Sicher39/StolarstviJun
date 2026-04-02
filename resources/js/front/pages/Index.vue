@@ -385,6 +385,27 @@ const facts = ref([
   }
 ])
 
+const woodFactory = ref([
+  {
+    sectionHeader: 'Navrhujeme a vyrábíme dřevěné prvky na míru s důrazem na funkčnost, detail a dlouhou životnost. Každý projekt řešíme individuálně podle prostoru, účelu i nároků na každodenní používání.',
+    content: [
+      {
+        header: 'Schody, zábradlí',
+        note: 'Navrhujeme konstrukčně spolehlivá řešení, která odpovídají prostoru i provoznímu zatížení. Každý detail řešíme s ohledem na bezpečnost, komfort i dlouhodobou odolnost.'
+      },
+      {
+        header: 'Obložení interiérů',
+        note: 'Vytváříme čisté a přesné realizace, které přirozeně navazují na architekturu prostoru. Důraz klademe na návaznosti, detaily a celkový vizuální dojem.'
+      },
+      {
+        header: 'Kuchyně, skříně a další',
+        note: 'Navrhujeme praktická a promyšlená řešení, která respektují každodenní provoz i individuální potřeby. Každý prvek má své místo, funkci i logiku.'
+      }
+    ]
+  }
+])
+
+
 
 </script>
 
@@ -440,7 +461,7 @@ const facts = ref([
     </div>
   </FullSection>
 
-  <div class="block relative w-full mt-32 mb-[450px]">
+  <div class="block relative w-full mt-32">
     <div class="absolute top-0 left-0 flex justify-end w-full">
       <img src="/img/bg/small/Doors01.webp" alt="">
     </div>
@@ -454,15 +475,37 @@ const facts = ref([
             <div class="col-span-3 flex justify-center">
               <VerticalScrollLine />
             </div>
-            <div class="col-span-6 pt-20">
-              <p>Vyrábíme interiérové i&nbsp;vchodové dveře na míru. <br> Každý kus vzniká v&nbsp;naší dílně s&nbsp;důrazem
-                na detail, <br> funkčnost a&nbsp;dlouhou životnost. Spojujeme poctivé<br> stolařské řemeslo s&nbsp;moderními
-                technologiemi.</p>
-              <div class="block w-[250px] group mt-20">
-                <ButtonMain><span class="uppercase font-main">Katalog produktů</span></ButtonMain>
+            <div class="col-span-9 grid grid-cols-12 pt-20">
+              <div class="col-span-9">
+                <p>Vyrábíme interiérové i&nbsp;vchodové dveře na míru. <br> Každý kus vzniká v&nbsp;naší dílně s&nbsp;důrazem
+                  na detail, <br> funkčnost a&nbsp;dlouhou životnost. Spojujeme poctivé<br> stolařské řemeslo s&nbsp;moderními
+                  technologiemi.</p>
+                <div class="block w-[250px] group mt-20">
+                  <ButtonMain><span class="uppercase font-main">Katalog produktů</span></ButtonMain>
+                </div>
+                <div class="block mt-32">
+                  <img src="/img/bg/small/Doors02.webp" class="w-full" alt="">
+                </div>
               </div>
-              <div class="block mt-32">
-                <img src="/img/bg/small/Doors02.webp" alt="">
+
+              <div class="col-span-12 grid grid-cols-12 mt-[150px]">
+                <div class="col-span-12">
+                  <h3 class="text-accent text-6xl 2xl:text-8xl reveal">Vyberte si, co vám sedí</h3>
+                  <p>Připravili jsme pro vás konfigurátor dveří</p>
+                </div>
+                <div class="col-span-6 relative -left-[180px] mt-20">
+                  <img src="/img/bg/small/Doors03.webp" class="w-full" alt="">
+                </div>
+                <div class="col-span-4 relative -left-[140px] mt-10">
+
+                  <p class="mt-10">Navrhněte si dveře přesně podle svých představ – od typu (interiérové, vchodové či protipožární) až po každý detail provedení.
+                    V konfigurátoru si snadno zvolíte materiál, design i kování, aby vše dokonale ladilo s vaším prostorem.
+                    Okamžitě tak získáte přehled o výsledné podobě i orientační ceně dveří, které vám opravdu vyhovují.</p>
+                  <div class="block w-[250px] group mt-20">
+                    <ButtonMain><span class="uppercase font-main">spustit konfigurátor</span></ButtonMain>
+                  </div>
+                </div>
+
               </div>
 
             </div>
@@ -471,6 +514,26 @@ const facts = ref([
       </FullSection>
     </div>
   </div>
+
+  <FullSection>
+    <div class="block w-full lg:pb-10 my-20">
+      <div class="block">
+        <h3 class="text-accent text-6xl 2xl:text-8xl reveal">Zakázková výroba<br>
+          ze dřeva</h3>
+        <p class="mt-10 reveal text-xl uppercase">
+          Schody, obložení, kuchyňské linky,
+          vestavěné skříně <br> i další prvky přesně podle prostoru a přání zákazníka.
+        </p>
+      </div>
+      <div class="block">
+        <TextGridFour v-for="(item, i) in woodFactory" :key="i" v-bind="item"/>
+      </div>
+      <div class="block w-[250px] group">
+        <ButtonMain><span class="uppercase font-main">Zakázková výroba</span></ButtonMain>
+      </div>
+    </div>
+
+  </FullSection>
 
 
 </template>

@@ -36,7 +36,7 @@ const footerContacts = computed(() => {
 </script>
 
 <template>
-  <div class="block border-t  w-full">
+  <div class="block border-t border-accent w-full">
     <div class="block w-full pb-10 pt-10">
       <FlexSection>
         <!-- Textový obsah nad obrázkem -->
