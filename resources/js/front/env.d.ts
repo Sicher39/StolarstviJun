@@ -1,7 +1,5 @@
 /// <reference types="vite/client" />
 
-
-
 declare module '*.vue' {
     const component: any;
 
@@ -13,5 +11,3 @@ declare module '*.css' {
 
     export default content;
 }
-
-declare function route(...args: unknown[]): any;

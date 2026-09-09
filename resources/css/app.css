@@ -4,10 +4,19 @@
     h1 { @apply font-head text-primary; }
     h2 { @apply font-main font-thin text-primary; }
     h3 { @apply font-head font-normal text-left text-xl md:text-2xl text-primary; }
-    h4 { @apply font-head font-black text-left uppercase text-primary; }
-    h5 { @apply font-main text-lg text-primary; }
+    h4 { @apply font-head font-normal text-left text-xl md:text-7xl  text-primary; }
+    h5 { @apply font-main text-primary text-xl md:text-3xl; }
     p  { @apply font-main font-thin text-xl text-primary; }
     li { @apply font-normal text-xl; }
+
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
 }
 
 /* ---- Design tokens (colors, fonts, breakpoints) ---- */

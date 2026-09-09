@@ -108,7 +108,7 @@ const bottomRightVerticallyClass = computed(() =>
 <template>
   <div
     :class="[
-      'relative w-full h-[30px]  transition-all  duration-[1s,10s] bg-primary/20',
+      'relative h-[30px]  transition-all  duration-[1s,10s] bg-primary/20',
     ]"
   >
     <div class="absolute inset-0">
@@ -137,7 +137,7 @@ const bottomRightVerticallyClass = computed(() =>
     <div class="absolute inset-0 w-full mt-1 smW:mt-[5px] lg:mt-0 px-4">
       <label
         :class="[
-          'font-head text-sm smW:text-xs lg:text-lg font-normal cursor-pointer flex items-center justify-center w-full text-primary group-hover:text-white group-hover:opacity-100 transition-all  duration-[1s,10s]'
+          'font-head text-sm smW:text-xs lg:text-lg font-normal uppercase font-main cursor-pointer flex items-center justify-center w-full text-primary group-hover:text-white group-hover:opacity-100 transition-all  duration-[1s,10s]'
         ]"
       >
         <slot />

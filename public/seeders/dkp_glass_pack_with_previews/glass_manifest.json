@@ -1,0 +1,50 @@
+[
+  {
+    "name": "Čiré sklo",
+    "slug": "cire-sklo",
+    "type": "glass",
+    "files": {
+      "preview": "preview-with-plant.webp",
+      "preview_png": "preview-with-plant.png",
+      "glass_png": "glass.png",
+      "glass_webp": "glass.webp"
+    },
+    "opacity": 0.35,
+    "usage": {
+      "preview": "Filament / product selection grid",
+      "glass": "Vue renderer clipped by glass-mask"
+    }
+  },
+  {
+    "name": "Kůra bílá",
+    "slug": "kura-bila",
+    "type": "glass",
+    "files": {
+      "preview": "preview-with-plant.webp",
+      "preview_png": "preview-with-plant.png",
+      "glass_png": "glass.png",
+      "glass_webp": "glass.webp"
+    },
+    "opacity": 0.72,
+    "usage": {
+      "preview": "Filament / product selection grid",
+      "glass": "Vue renderer clipped by glass-mask"
+    }
+  },
+  {
+    "name": "Činčila",
+    "slug": "cincila",
+    "type": "glass",
+    "files": {
+      "preview": "preview-with-plant.webp",
+      "preview_png": "preview-with-plant.png",
+      "glass_png": "glass.png",
+      "glass_webp": "glass.webp"
+    },
+    "opacity": 0.78,
+    "usage": {
+      "preview": "Filament / product selection grid",
+      "glass": "Vue renderer clipped by glass-mask"
+    }
+  }
+]

@@ -45,28 +45,28 @@ const isActive = computed(() => {
               : 'text-lg'
           ]"
         >
-          <span :class="[isActive ? 'text-accent' : 'text-white group-hover:text-accent']">
+          <span :class="[isActive ? 'text-white' : 'text-accent group-hover:text-white']">
             {{ props.title }}
           </span>
         </p>
       </div>
       <div class="flex justify-center w-full">
         <Triangle :class="['-rotate-90 -mb-[4px] group-hover:transition-all group-hover:ease-out group-hover:duration-700',
-        isActive ? 'text-accent' : 'text-red group-hover:text-accent'
+        isActive ? 'text-white' : 'text-accent group-hover:text-white'
         ]"
         />
         <div
             :class="[ 'block hidden',
           isActive
-            ? 'w-[2px] h-[10px] bg-accent'
-            : 'w-[2px] h-[10px] bg-red group-hover:bg-accent group-hover:transition-all group-hover:ease-out group-hover:duration-700'
+            ? 'w-[2px] h-[10px] bg-white'
+            : 'w-[2px] h-[10px] bg-accent group-hover:bg-white group-hover:transition-all group-hover:ease-out group-hover:duration-700'
         ]"
         />
       </div>
       <div :class="['flex justify-center w-full h-[2px]  group-hover:transition-all group-hover:ease-out group-hover:duration-700 ',
           isActive
-          ? 'bg-accent'
-          : 'bg-red group-hover:bg-accent'
+          ? 'bg-white'
+          : 'bg-accent group-hover:bg-white'
           ]"
       />
     </div>

@@ -1,6 +1,6 @@
 <script setup lang="ts" >
 import MainLayout from "@/front/layouts/MainLayout.vue";
-import FlexSection from "@/front/components/Sections/FlexSection.vue";
+import SecondHeaderSection from "@/front/components/Sections/SecondHeaderSection.vue";
 
 defineOptions({
   layout: MainLayout
@@ -9,12 +9,11 @@ defineOptions({
 
 <template>
 
-  <div class="flex items-end min-h-screen w-full">
-    <div class="flex justify-start pt-28 pb-20 w-full ">
-      <h1 class="text-primary items-end  text-9xl">
-       Kontakt
-      </h1>
-    </div>
-
-  </div>
+  <SecondHeaderSection
+      img="wood-door"
+  >
+    <template v-slot:header>
+      Kontakty
+    </template>
+  </SecondHeaderSection>
 </template>

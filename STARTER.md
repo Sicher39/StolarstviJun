@@ -246,6 +246,16 @@ Poznamka:
 - kdyz je CSS samostatny entrypoint, background image z `public/img` muze v devu padat na `404`, protoze se URL vyhodnoti proti Vite originu misto proti Laravel app
 - overeny funkcni vzor je: v `@vite(...)` jen JS entrypoint a v nem `import '../../css/app.css';`
 
+### Technicka poznamka: Ziggy + `route()` ve Vue/Inertia
+
+Pokud ve Vue sablonach pouzivas `route('...')`, dej Ziggy setup uz do starteru:
+
+- backend balicek: `tightenco/ziggy`
+- frontend balicek: `ziggy-js`
+- v root Blade sablone dej `@routes` pred `@vite`
+- v `resources/js/front/app.ts` registruj `.use(ZiggyVue)`
+- pridej TS deklaraci pro globalni `route()`; bez ni Volar / `vue-tsc` casto hlasi `TS2339: Property 'route' does not exist...`
+
 ### `tsconfig.json`
 
 Soubor: `tsconfig.json`
