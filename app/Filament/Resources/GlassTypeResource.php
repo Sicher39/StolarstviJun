@@ -47,11 +47,6 @@ class GlassTypeResource extends Resource
                     ->label('Název')
                     ->required()
                     ->maxLength(255),
-                TextInput::make('code')
-                    ->label('Kód')
-                    ->required()
-                    ->maxLength(255)
-                    ->unique(ignoreRecord: true),
                 TextInput::make('opacity')
                     ->label('Průhlednost (%)')
                     ->numeric()
@@ -107,10 +102,6 @@ class GlassTypeResource extends Resource
                     ->square(),
                 TextColumn::make('name')
                     ->label('Název')
-                    ->searchable()
-                    ->sortable(),
-                TextColumn::make('code')
-                    ->label('Kód')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('opacity')

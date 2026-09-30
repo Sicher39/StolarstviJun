@@ -47,11 +47,6 @@ class DecorResource extends Resource
                     ->label('Název')
                     ->required()
                     ->maxLength(255),
-                TextInput::make('code')
-                    ->label('Kód')
-                    ->required()
-                    ->maxLength(255)
-                    ->unique(ignoreRecord: true),
                 TextInput::make('price_modifier')
                     ->label('Cenová úprava')
                     ->numeric()
@@ -99,10 +94,6 @@ class DecorResource extends Resource
                     ->square(),
                 TextColumn::make('name')
                     ->label('Název')
-                    ->searchable()
-                    ->sortable(),
-                TextColumn::make('code')
-                    ->label('Kód')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('price_modifier')

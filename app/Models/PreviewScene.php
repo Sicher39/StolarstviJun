@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\GeneratesSystemCode;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
 
 class PreviewScene extends Model implements HasMedia
 {
+    use GeneratesSystemCode;
     use HasFactory, InteractsWithMedia;
 
     public const CANVAS_WIDTH = 1400;
@@ -57,6 +59,11 @@ class PreviewScene extends Model implements HasMedia
                 ->useDisk('public')
                 ->singleFile();
         }
+    }
+
+    protected function systemCodePrefix(): string
+    {
+        return 'SCN';
     }
 
     protected function casts(): array

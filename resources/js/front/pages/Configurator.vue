@@ -114,6 +114,9 @@ const previewSvgIdBase = computed((): string => {
 const doorMaskId = computed((): string => `${previewSvgIdBase.value}-door-mask`)
 const selectedGlassImageUrl = computed((): string | null => selectedGlass.value?.texture_image_url ?? null)
 const glassLayerImageUrl = computed((): string | null => selectedGlassImageUrl.value)
+const useBlurredInterior = computed((): boolean => {
+  return selectedGlass.value !== null && selectedGlass.value.code !== 'cire-sklo'
+})
 
 const selectedGlassOpacity = computed((): number => {
   const opacity = selectedGlass.value?.opacity

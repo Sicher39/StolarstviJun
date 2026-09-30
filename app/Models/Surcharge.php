@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\GeneratesSystemCode;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Surcharge extends Model
 {
+    use GeneratesSystemCode;
     use HasFactory;
 
     protected $fillable = [
@@ -27,6 +29,11 @@ class Surcharge extends Model
         return $this->belongsToMany(Inquiry::class)
             ->withPivot('price_without_vat')
             ->withTimestamps();
+    }
+
+    protected function systemCodePrefix(): string
+    {
+        return 'SUR';
     }
 
     protected function casts(): array

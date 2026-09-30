@@ -6,6 +6,7 @@ use App\Filament\Resources\DoorVariantResource;
 use App\Models\DoorVariant;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class CreateDoorVariant extends CreateRecord
 {
@@ -43,6 +44,28 @@ class CreateDoorVariant extends CreateRecord
             unset($data[$field]);
         }
 
+        foreach ($this->normalizeUploadPaths($data['render_layers_batch_upload'] ?? null) as $path) {
+            $collection = $this->collectionForBatchUpload($path);
+
+            if ($paths[$collection] !== null) {
+                throw ValidationException::withMessages([
+                    'render_layers_batch_upload' => "Vrstva {$collection} je dodaná vícekrát. Použijte pro každou vrstvu právě jeden soubor.",
+                ]);
+            }
+
+            $paths[$collection] = $path;
+        }
+
+        unset($data['render_layers_batch_upload']);
+
+        foreach (['frame_base', 'frame_mask', 'door_mask', 'construction_overlay', 'handle_overlay'] as $requiredCollection) {
+            if ($paths[$requiredCollection] === null) {
+                throw ValidationException::withMessages([
+                    'render_layers_batch_upload' => "Chybí povinná vrstva {$requiredCollection}.",
+                ]);
+            }
+        }
+
         return $paths;
     }
 
@@ -70,10 +93,60 @@ class CreateDoorVariant extends CreateRecord
             'frame_base_upload' => 'frame_base',
             'frame_mask_upload' => 'frame_mask',
             'door_mask_upload' => 'door_mask',
+            'door_vertical_decor_mask_upload' => 'door_vertical_decor_mask',
+            'door_horizontal_decor_mask_upload' => 'door_horizontal_decor_mask',
+            'frame_vertical_decor_mask_upload' => 'frame_vertical_decor_mask',
+            'frame_horizontal_decor_mask_upload' => 'frame_horizontal_decor_mask',
+            'depth_overlay_upload' => 'depth_overlay',
             'construction_overlay_upload' => 'construction_overlay',
             'handle_overlay_upload' => 'handle_overlay',
             'source_reference_upload' => 'source_reference',
         ];
+    }
+
+    /** @return array<int, string> */
+    private function normalizeUploadPaths(mixed $paths): array
+    {
+        if (! is_array($paths)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $paths,
+            fn (mixed $path): bool => is_string($path) && $path !== '',
+        ));
+    }
+
+    private function collectionForBatchUpload(string $path): string
+    {
+        $storedFileName = basename($path);
+        $originalFileName = str_contains($storedFileName, '--')
+            ? explode('--', $storedFileName, 2)[1]
+            : $storedFileName;
+        $fileName = strtolower(pathinfo($originalFileName, PATHINFO_FILENAME));
+        $normalizedFileName = str_replace(['-', '_'], '', $fileName);
+
+        $collectionsByFileName = [
+            'framebase' => 'frame_base',
+            'framemask' => 'frame_mask',
+            'doormask' => 'door_mask',
+            'doorverticaldecormask' => 'door_vertical_decor_mask',
+            'doorhorizontaldecormask' => 'door_horizontal_decor_mask',
+            'frameverticaldecormask' => 'frame_vertical_decor_mask',
+            'framehorizontaldecormask' => 'frame_horizontal_decor_mask',
+            'depthoverlay' => 'depth_overlay',
+            'constructionoverlay' => 'construction_overlay',
+            'handleoverlay' => 'handle_overlay',
+            'sourcereference' => 'source_reference',
+        ];
+
+        if (! isset($collectionsByFileName[$normalizedFileName])) {
+            throw ValidationException::withMessages([
+                'render_layers_batch_upload' => "Soubor {$fileName} nemá podporovaný název vrstvy.",
+            ]);
+        }
+
+        return $collectionsByFileName[$normalizedFileName];
     }
 
     private function normalizeUploadPath(mixed $value): ?string

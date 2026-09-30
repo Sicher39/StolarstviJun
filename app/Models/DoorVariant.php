@@ -33,7 +33,19 @@ class DoorVariant extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        foreach (['frame_base', 'frame_mask', 'door_mask', 'construction_overlay', 'handle_overlay', 'source_reference'] as $collectionName) {
+        foreach([
+            'frame_base',
+            'frame_mask',
+            'door_mask',
+            'door_vertical_decor_mask',
+            'door_horizontal_decor_mask',
+            'frame_vertical_decor_mask',
+            'frame_horizontal_decor_mask',
+            'depth_overlay',
+            'construction_overlay',
+            'handle_overlay',
+            'source_reference',
+        ] as $collectionName) {
             $this->addMediaCollection($collectionName)
                 ->useDisk('public')
                 ->singleFile();

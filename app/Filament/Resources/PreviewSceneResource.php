@@ -45,7 +45,6 @@ class PreviewSceneResource extends Resource
             Section::make('Prostředí')
                 ->schema([
                     TextInput::make('name')->label('Název')->required()->maxLength(255),
-                    TextInput::make('code')->label('Kód')->required()->maxLength(255)->unique(ignoreRecord: true),
                     Toggle::make('active')->label('Aktivní')->default(true),
                 ]),
             Section::make('Společné vrstvy místnosti')
@@ -70,7 +69,6 @@ class PreviewSceneResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('name')->label('Název')->searchable()->sortable(),
-                TextColumn::make('code')->label('Kód')->searchable()->sortable(),
                 IconColumn::make('active')->label('Aktivní')->boolean(),
                 TextColumn::make('updated_at')->label('Upraveno')->dateTime('d.m.Y H:i')->sortable(),
             ])

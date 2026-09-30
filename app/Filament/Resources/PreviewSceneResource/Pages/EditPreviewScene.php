@@ -70,13 +70,22 @@ class EditPreviewScene extends EditRecord
 
     private function syncUploads(PreviewScene $scene): void
     {
-        foreach ($this->uploadPaths as $collection => $path) {
-            if ($path === null || ! str_starts_with($path, 'preview-scene-upload-staging/')) {
+        $uploadPaths = $this->uploadPaths;
+        $this->uploadPaths = [];
+
+        foreach ($uploadPaths as $collection => $path) {
+            if (
+                $path === null
+                || ! str_starts_with($path, 'preview-scene-upload-staging/')
+                || ! Storage::disk('public')->exists($path)
+            ) {
                 continue;
             }
 
-            $scene->clearMediaCollection($collection);
-            $scene->addMediaFromDisk($path, 'public')->preservingOriginal()->toMediaCollection($collection);
+            $scene->addMediaFromDisk($path, 'public')
+                ->preservingOriginal()
+                ->toMediaCollection($collection);
+
             Storage::disk('public')->delete($path);
         }
     }

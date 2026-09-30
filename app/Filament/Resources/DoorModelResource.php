@@ -50,11 +50,6 @@ class DoorModelResource extends Resource
                     ->label('Název')
                     ->required()
                     ->maxLength(255),
-                TextInput::make('slug')
-                    ->label('Slug')
-                    ->required()
-                    ->maxLength(255)
-                    ->unique(ignoreRecord: true),
                 TextInput::make('category')
                     ->label('Kategorie')
                     ->maxLength(255),
@@ -106,10 +101,6 @@ class DoorModelResource extends Resource
             ->columns([
                 TextColumn::make('name')
                     ->label('Název')
-                    ->searchable()
-                    ->sortable(),
-                TextColumn::make('slug')
-                    ->label('Slug')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('category')

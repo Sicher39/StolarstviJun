@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\GeneratesSystemCode;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
 
 class PreviewSceneMaterial extends Model implements HasMedia
 {
+    use GeneratesSystemCode;
     use HasFactory, InteractsWithMedia;
 
     protected $fillable = [
@@ -34,6 +36,11 @@ class PreviewSceneMaterial extends Model implements HasMedia
                 ->useDisk('public')
                 ->singleFile();
         }
+    }
+
+    protected function systemCodePrefix(): string
+    {
+        return 'MAT';
     }
 
     protected function casts(): array

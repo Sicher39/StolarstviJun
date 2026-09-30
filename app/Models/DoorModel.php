@@ -7,12 +7,26 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
 class DoorModel extends Model implements HasMedia
 {
     use HasFactory, InteractsWithMedia;
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $doorModel): void {
+            if (filled($doorModel->slug)) {
+                return;
+            }
+
+            $slug = Str::slug($doorModel->name) ?: 'model-dveri';
+
+            $doorModel->slug = sprintf('%s-%s', $slug, Str::lower((string) Str::ulid()));
+        });
+    }
 
     protected $fillable = [
         'name',

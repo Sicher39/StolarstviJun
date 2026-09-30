@@ -21,6 +21,8 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Str;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class DoorVariantResource extends Resource
 {
@@ -55,7 +57,8 @@ class DoorVariantResource extends Resource
                             ->preload()
                             ->required(),
                         TextInput::make('code')
-                            ->label('Název / kód varianty')
+                            ->label('Název varianty')
+                            ->helperText('Například „Plné, levé, 80 cm“ nebo interní označení, které používáte.')
                             ->required()
                             ->maxLength(255),
                         TextInput::make('width')
@@ -90,14 +93,28 @@ class DoorVariantResource extends Resource
                     ])
                     ->columns(2),
                 Section::make('Renderovací vrstvy')
-                    ->description('Sklo se vykresluje celoplošně pod dveřmi. Všechny vrstvy musí mít shodný master canvas 426 × 900 px.')
+                    ->description(fn (?DoorVariant $record): string => self::renderLayersDescription($record))
                     ->schema([
-                        self::imageUpload('frame_base_upload', 'Podklad zárubně — pouze PNG (frame-base.png)', true),
-                        self::maskUpload('frame_mask_upload', 'Maska zárubně — pouze SVG (frame-mask.svg)', true),
-                        self::maskUpload('door_mask_upload', 'Maska křídla s otvory pro sklo — pouze SVG (door-mask.svg)', true),
-                        self::imageUpload('construction_overlay_upload', 'Konstrukční spáry a stíny — pouze PNG (construction-overlay.png)', true),
-                        self::imageUpload('handle_overlay_upload', 'Klika a kování — pouze PNG (handle-overlay.png)', true),
-                        self::imageUpload('source_reference_upload', 'Referenční obrázek pro kontrolu — pouze PNG (source-reference.png)', false),
+                        self::renderLayersBatchUpload(),
+                        Section::make('Ruční oprava jednotlivé vrstvy')
+                            ->description('Použijte pouze při výměně jedné konkrétní vrstvy. Běžně nahrávejte kompletní sadu hromadně výše.')
+                            ->schema([
+                                self::imageUpload('frame_base_upload', 'Podklad zárubně — PNG (frame-base.png)', false),
+                                self::maskUpload('frame_mask_upload', 'Maska zárubně — SVG (frame-mask.svg)', false),
+                                self::maskUpload('door_mask_upload', 'Maska křídla s otvory pro sklo — SVG (door-mask.svg)', false),
+                                self::maskUpload('door_vertical_decor_mask_upload', 'Zóny dekoru křídla — svisle (door-vertical-decor-mask.svg)', false),
+                                self::maskUpload('door_horizontal_decor_mask_upload', 'Zóny dekoru křídla — vodorovně (door-horizontal-decor-mask.svg)', false),
+                                self::maskUpload('frame_vertical_decor_mask_upload', 'Zóny dekoru zárubně — svisle (frame-vertical-decor-mask.svg)', false),
+                                self::maskUpload('frame_horizontal_decor_mask_upload', 'Zóny dekoru zárubně — vodorovně (frame-horizontal-decor-mask.svg)', false),
+                                self::imageUpload('depth_overlay_upload', 'Hloubkové stíny a předstoupené díly — PNG (depth-overlay.png)', false),
+                                self::imageUpload('construction_overlay_upload', 'Konstrukční spáry a stíny — PNG (construction-overlay.png)', false),
+                                self::imageUpload('handle_overlay_upload', 'Klika a kování — PNG (handle-overlay.png)', false),
+                                self::imageUpload('source_reference_upload', 'Referenční obrázek pro kontrolu — PNG (source-reference.png)', false),
+                            ])
+                            ->columns(2)
+                            ->collapsible()
+                            ->collapsed()
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
             ]);
@@ -112,7 +129,7 @@ class DoorVariantResource extends Resource
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('code')
-                    ->label('Kód')
+                    ->label('Varianta')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('width')
@@ -153,6 +170,56 @@ class DoorVariantResource extends Resource
             'create' => CreateDoorVariant::route('/create'),
             'edit' => EditDoorVariant::route('/{record}/edit'),
         ];
+    }
+
+    private static function renderLayersDescription(?DoorVariant $variant): string
+    {
+        $baseDescription = 'Sklo se vykresluje celoplošně pod dveřmi. Všechny vrstvy musí mít shodný master canvas 426 × 900 px. Orientační masky vždy nahrávejte jako kompletní dvojici pro křídlo a/nebo zárubeň.';
+
+        if ($variant === null || ! $variant->exists) {
+            return $baseDescription;
+        }
+
+        $collections = [
+            'frame_base',
+            'frame_mask',
+            'door_mask',
+            'construction_overlay',
+            'handle_overlay',
+            'source_reference',
+            'door_vertical_decor_mask',
+            'door_horizontal_decor_mask',
+            'frame_vertical_decor_mask',
+            'frame_horizontal_decor_mask',
+            'depth_overlay',
+        ];
+
+        $storedLayersCount = count(array_filter(
+            $collections,
+            fn (string $collection): bool => $variant->hasMedia($collection),
+        ));
+
+        return "Uloženo vrstev: {$storedLayersCount}/".count($collections).'. Po uložení se hromadné pole úmyslně vyprázdní, protože soubory už jsou bezpečně přiřazené k variantě. '.$baseDescription;
+    }
+
+    private static function renderLayersBatchUpload(): FileUpload
+    {
+        return FileUpload::make('render_layers_batch_upload')
+            ->label('Nahrát všechny vrstvy najednou')
+            ->helperText('Vyberte všechny soubory jedné varianty. Vrstvy se přiřadí automaticky podle názvu souboru; podporované názvy jsou uvedené níže u jednotlivých polí.')
+            ->acceptedFileTypes(['image/png', 'image/svg+xml'])
+            ->multiple()
+            ->maxSize(10240)
+            ->disk('public')
+            ->directory('door-variant-upload-staging')
+            ->visibility('public')
+            ->getUploadedFileNameForStorageUsing(
+                fn (TemporaryUploadedFile $file): string => Str::ulid().'--'.$file->getClientOriginalName(),
+            )
+            ->previewable(false)
+            ->panelLayout('compact')
+            ->columnSpanFull()
+            ->dehydrated();
     }
 
     private static function imageUpload(string $name, string $label, bool $required): FileUpload

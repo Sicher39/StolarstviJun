@@ -58,7 +58,6 @@ class PreviewSceneMaterialResource extends Resource
                 ])
                 ->required(),
             TextInput::make('name')->label('Název')->required()->maxLength(255),
-            TextInput::make('code')->label('Kód')->required()->maxLength(255),
             ColorPicker::make('color')->label('Základní barva')->visible(fn (string $operation, ?PreviewSceneMaterial $record): bool => $record?->type === 'wall' || $operation === 'create'),
             TextInput::make('sort_order')->label('Pořadí')->numeric()->integer()->required()->default(0),
             Toggle::make('active')->label('Aktivní')->default(true),

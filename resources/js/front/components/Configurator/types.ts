@@ -46,6 +46,11 @@ export interface DoorVariant {
   frame_base_url: string | null
   frame_mask_url: string | null
   door_mask_url: string | null
+  door_vertical_decor_mask_url: string | null
+  door_horizontal_decor_mask_url: string | null
+  frame_vertical_decor_mask_url: string | null
+  frame_horizontal_decor_mask_url: string | null
+  depth_overlay_url: string | null
   construction_overlay_url: string | null
   handle_overlay_url: string | null
   source_reference_url: string | null
