@@ -35,7 +35,7 @@ class DoorConfiguratorSeeder extends Seeder
             $doorModel = $this->seedStandardDoorModel();
             $glassTypes = $this->seedGlassTypes();
 
-            $this->seedStandardVariants($doorModel);
+            $this->seedStandardVariantsAndTemplates($doorModel);
 
             $doorModel->decors()->sync($decors->pluck('id')->all());
             $doorModel->glasses()->sync($glassTypes->pluck('id')->all());
@@ -205,6 +205,24 @@ class DoorConfiguratorSeeder extends Seeder
         if ($firstPreviewPath !== null) {
             $this->replaceSingleMedia($doorModel, 'preview_image', $firstPreviewPath);
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readJsonFile(string $path): array
+    {
+        if (! File::exists($path)) {
+            return [];
+        }
+
+        try {
+            $data = json_decode(File::get($path), true, flags: JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \RuntimeException("Neplatný JSON soubor: {$path}", previous: $exception);
+        }
+
+        return is_array($data) ? $data : [];
     }
 
     /**
