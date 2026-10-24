@@ -27,10 +27,22 @@ class EditGlassType extends EditRecord
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        $data['texture_image_upload'] = $this->mediaState('texture_image');
+        $data['preview_image_upload'] = $this->mediaState('preview_image');
+
+        return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        $this->textureImageUploadPath = $this->normalizeUploadPath($data['texture_image_upload'] ?? null);
-        $this->previewImageUploadPath = $this->normalizeUploadPath($data['preview_image_upload'] ?? null);
+        $this->textureImageUploadPath = $this->stagedUploadPath($data['texture_image_upload'] ?? null);
+        $this->previewImageUploadPath = $this->stagedUploadPath($data['preview_image_upload'] ?? null);
 
         unset($data['texture_image_upload'], $data['preview_image_upload']);
 
@@ -40,6 +52,7 @@ class EditGlassType extends EditRecord
     protected function afterSave(): void
     {
         $this->syncMediaUploads($this->getRecord());
+        $this->fillForm();
     }
 
     private function syncMediaUploads(GlassType $glassType): void
@@ -64,6 +77,20 @@ class EditGlassType extends EditRecord
         }
 
         $this->deleteStagedUpload($texturePath, $previewPath);
+    }
+
+    private function mediaState(string $collection): ?string
+    {
+        $media = $this->getRecord()->getFirstMedia($collection);
+
+        return $media ? $media->getKey().'/'.$media->file_name : null;
+    }
+
+    private function stagedUploadPath(mixed $value): ?string
+    {
+        $path = $this->normalizeUploadPath($value);
+
+        return $path !== null && str_starts_with($path, 'glass-upload-staging/') ? $path : null;
     }
 
     private function normalizeUploadPath(mixed $value): ?string
