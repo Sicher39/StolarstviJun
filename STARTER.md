@@ -68,8 +68,8 @@ php artisan migrate
 
 Poznamka:
 
-- pokud chces `Filament 5 + Shield`, zustan na Laravel 12
-- aktualne te na Laravel 13 blokuje `filament-shield`
+- `Filament 5 + Shield` jde i na Laravel 13, ale az od `bezhansalleh/filament-shield` `^4.3` (ta verze podporuje `illuminate/* ^13.0`)
+- proto je v `composer.json` spodni hranice Shieldu nastavena na `^4.3`
 
 ---
 

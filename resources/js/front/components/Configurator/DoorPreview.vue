@@ -34,7 +34,6 @@ const doorVerticalDecorMaskId = computed((): string => `${props.doorMaskId}-door
 const doorHorizontalDecorMaskId = computed((): string => `${props.doorMaskId}-door-horizontal-decor-mask`)
 const frameVerticalDecorMaskId = computed((): string => `${props.doorMaskId}-frame-vertical-decor-mask`)
 const frameHorizontalDecorMaskId = computed((): string => `${props.doorMaskId}-frame-horizontal-decor-mask`)
-const glassTexturePatternId = computed((): string => `${props.doorMaskId}-glass-texture-pattern`)
 const horizontalDecorPatternId = computed((): string => `${props.doorMaskId}-horizontal-decor-pattern`)
 const verticalDecorPatternId = computed((): string => `${props.doorMaskId}-vertical-decor-pattern`)
 const frameHeaderClipId = computed((): string => `${props.doorMaskId}-frame-header-clip`)
@@ -141,12 +140,19 @@ const roomBehindGlassUrl = computed((): string | null => {
             <pattern :id="verticalDecorPatternId" width="180" :height="doorCanvasHeight" patternUnits="userSpaceOnUse">
               <image :href="selectedDecorImageUrl" :width="doorCanvasHeight" height="180" preserveAspectRatio="xMidYMid slice" transform="translate(180 0) rotate(90)" />
             </pattern>
-            <pattern v-if="glassLayerImageUrl" :id="glassTexturePatternId" width="96" height="96" patternUnits="userSpaceOnUse">
-              <image :href="glassLayerImageUrl" width="96" height="96" preserveAspectRatio="none" />
-            </pattern>
           </defs>
 
-          <rect v-if="glassLayerImageUrl && selectedVariant.has_glass" :width="doorCanvasWidth" :height="doorCanvasHeight" :fill="`url(#${glassTexturePatternId})`" :opacity="selectedGlassOpacity" :clip-path="`url(#${doorLeafClipId})`" />
+          <!-- Glass texture is drawn exactly once over the door canvas and centre-cropped (`slice`),
+               so the uploaded structure is never stretched nor tiled; the leaf clip keeps it on the panel. -->
+          <image
+            v-if="glassLayerImageUrl && selectedVariant.has_glass"
+            :href="glassLayerImageUrl"
+            :width="doorCanvasWidth"
+            :height="doorCanvasHeight"
+            preserveAspectRatio="xMidYMid slice"
+            :opacity="selectedGlassOpacity"
+            :clip-path="`url(#${doorLeafClipId})`"
+          />
           <image v-if="selectedVariant.frame_base_url" :href="selectedVariant.frame_base_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
           <rect
             v-if="selectedVariant.frame_vertical_decor_mask_url && selectedVariant.frame_horizontal_decor_mask_url"
