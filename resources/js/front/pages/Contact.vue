@@ -1,4 +1,4 @@
-<script setup lang="ts" >
+<script setup lang="ts">
 import MainLayout from "@/front/layouts/MainLayout.vue";
 import SecondHeaderSection from "@/front/components/Sections/SecondHeaderSection.vue";
 
@@ -10,10 +10,10 @@ defineOptions({
 <template>
 
   <SecondHeaderSection
-      img="wood-door"
+      img="contact"
   >
     <template v-slot:header>
-      Kontakty
+      Kontakt
     </template>
   </SecondHeaderSection>
 </template>

@@ -47,7 +47,7 @@ onBeforeUnmount((): void => {
 
 const sections = ref([
   {
-    img: 'Doors03',
+    img: 'custom-kitchen',
     title: 'Kuchyně',
     listTitle: 'Možnosti provedení:',
     texts:[
@@ -63,7 +63,7 @@ const sections = ref([
     ]
   },
   {
-    img: 'Doors03',
+    img: 'custom-furniture',
     title: 'Nábytek ',
     listTitle: 'Typy nábytku:',
     texts:[
@@ -80,7 +80,7 @@ const sections = ref([
     ]
   },
   {
-    img: 'Doors03',
+    img: 'custom-staircase',
     title: 'Schodiště a zábradlí ',
     listTitle: 'Možnosti provedení:',
     texts:[
@@ -103,7 +103,7 @@ const sections = ref([
 <template>
 
   <SecondHeaderSection
-      img="wood-door"
+      img="produce"
   >
     <template v-slot:header>
       Zakázková výroba <br>
@@ -111,7 +111,7 @@ const sections = ref([
       ale standard
     </template>
     <template v-slot:title>
-      Každý projekt řešíme individuálně – nejen po stránce vzhledu, ale hlavně z technického hlediska.
+      Všechny rojekty řešíme individuálně – nejen po stránce vzhledu, ale hlavně z technického hlediska.
     </template>
   </SecondHeaderSection>
 
