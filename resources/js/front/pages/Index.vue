@@ -195,9 +195,9 @@ const woodFactory = ref([
 
                   <p class="mt-10">Navrhněte si dveře přesně podle svých představ – od typu (interiérové, vchodové či
                     protipožární) až po každý detail provedení.
-                    V konfigurátoru si snadno zvolíte materiál, design i kování, aby vše dokonale ladilo s vaším
+                    V konfigurátoru si snadno zvolíte materiál, design i&nbsp;kování, aby vše dokonale ladilo s&nbsp;vaším
                     prostorem.
-                    Okamžitě tak získáte přehled o výsledné podobě i orientační ceně dveří, které vám opravdu
+                    Okamžitě tak získáte přehled o&nbsp;výsledné podobě i&nbsp;orientační ceně dveří, které vám opravdu
                     vyhovují.</p>
                   <Link :href="route('front.configurator')" class="block w-[250px] group mt-20">
                     <ButtonMain><span class="uppercase font-main">spustit konfigurátor</span></ButtonMain>
@@ -220,7 +220,7 @@ const woodFactory = ref([
           ze dřeva</h3>
         <p class="mt-10 reveal text-xl uppercase">
           Schody, obložení, kuchyňské linky,
-          vestavěné skříně <br> i další prvky přesně podle prostoru a přání zákazníka.
+          vestavěné skříně <br>i další prvky přesně podle prostoru a&nbsp;přání zákazníka.
         </p>
       </div>
       <div class="block">
