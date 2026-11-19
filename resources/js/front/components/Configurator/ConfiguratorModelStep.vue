@@ -2,11 +2,12 @@
 import { computed } from 'vue'
 
 import type { DoorModel } from './types'
-import { formatPriceWithVat } from './utils'
+import { formatPriceWithVat, formatVariantCount } from './utils'
 
 const props = defineProps<{
   doorModels: DoorModel[]
   selectedModelId: number | null
+  vatRate: number
 }>()
 
 const emit = defineEmits<{
@@ -45,12 +46,12 @@ const modelCards = computed(() => {
 
       <span class="flex flex-1 flex-col gap-2 p-3">
         <span class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-          <span class="text-base leading-tight text-white uppercase lg:text-lg">{{ card.model.name }}</span>
-          <span v-if="card.model.category" class="text-[10px] uppercase tracking-[0.16em] text-accent">{{ card.model.category }}</span>
+          <span class="text-base leading-tight text-white lg:text-lg">{{ card.model.name }}</span>
+          <span v-if="card.model.category" class="text-[10px] tracking-[0.16em] text-accent">{{ card.model.category }}</span>
         </span>
-        <span class="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] uppercase tracking-[0.16em] text-white/55">
-          <span>{{ card.model.variants.length }} variant</span>
-          <span>{{ formatPriceWithVat(card.model.base_price_without_vat) }} vč. DPH</span>
+        <span class="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] tracking-[0.16em] text-white/55">
+          <span>{{ formatVariantCount(card.model.variants.length) }}</span>
+          <span>{{ formatPriceWithVat(card.model.base_price_without_vat, vatRate) }} vč. DPH</span>
         </span>
       </span>
     </button>

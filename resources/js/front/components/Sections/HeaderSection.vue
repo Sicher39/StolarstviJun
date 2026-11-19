@@ -93,7 +93,7 @@ onBeforeUnmount((): void => {
     <div ref="rootElement" class="relative w-full">
       <div class="relative pt-32 z-20 w-full">
         <div class="revealHeader">
-          <h1 class="text-white items-end lg:leading-[150px] text-5xl lg:text-8xl reveal-text">
+          <h1 class="text-white items-end lg:leading-[120px] text-5xl lg:text-8xl reveal-text">
             <slot name="header"/>
           </h1>
         </div>
@@ -111,7 +111,7 @@ onBeforeUnmount((): void => {
         </div>
       </div>
 
-      <div class="absolute w-full top-[400px] z-10 header-reveal-media">
+      <div class="absolute w-full top-[400px] -right-[250px] z-10 header-reveal-media">
         <div class="flex w-full justify-center">
           <img :src="`/img/bg/headers/${img}.webp`" class="w-[1080px]" alt="">
         </div>

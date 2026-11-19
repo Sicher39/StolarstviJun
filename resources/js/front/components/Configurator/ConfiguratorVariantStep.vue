@@ -5,6 +5,7 @@ import { formatPriceWithVat, variantLabel } from './utils'
 defineProps<{
   variants: DoorVariant[]
   selectedVariantId: number | null
+  vatRate: number
 }>()
 
 const emit = defineEmits<{
@@ -33,11 +34,11 @@ const emit = defineEmits<{
       </span>
 
       <span class="flex-1">
-        <span class="block text-lg text-white uppercase">{{ variant.code }}</span>
-        <span class="mt-1 block text-xs uppercase leading-relaxed text-white/60">{{ variantLabel(variant) }}</span>
+        <span class="block text-lg text-white">{{ variant.code }}</span>
+        <span class="mt-1 block text-xs leading-relaxed text-white/60">{{ variantLabel(variant) }}</span>
       </span>
 
-      <span class="ml-auto shrink-0 text-right text-xs uppercase text-accent">{{ variant.price_modifier > 0 ? '+' : '' }}{{ formatPriceWithVat(variant.price_modifier) }} vč. DPH</span>
+      <span class="ml-auto shrink-0 text-right text-xs text-accent">{{ variant.price_modifier > 0 ? '+' : '' }}{{ formatPriceWithVat(variant.price_modifier, vatRate) }} vč. DPH</span>
     </button>
   </div>
 </template>

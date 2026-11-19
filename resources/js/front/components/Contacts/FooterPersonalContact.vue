@@ -51,6 +51,7 @@ const handleEmailClick = () => {
 </script>
 
 <template>
+
   <div class="mt-5 w-full">
     <p class="text-primary text-lg">
       {{ props.position }}

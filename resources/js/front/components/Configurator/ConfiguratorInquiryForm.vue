@@ -28,7 +28,7 @@ const emit = defineEmits<{
       Odešlete specifikaci a my připravíme individuální nabídku podle vybrané konfigurace.
     </p>
 
-    <div v-if="flashSuccess" class="mt-6 border border-accent/40 bg-accent/10 p-4 text-accent uppercase text-sm">
+    <div v-if="flashSuccess" class="mt-6 border border-accent/40 bg-accent/10 p-4 text-accent text-sm">
       {{ flashSuccess }}
     </div>
 
@@ -38,10 +38,10 @@ const emit = defineEmits<{
         <input
           v-model="form.customer_name"
           type="text"
-          class="mt-2 w-full border border-white/10 bg-white/5 px-4 py-3 text-white uppercase outline-none transition focus:border-accent"
+          class="mt-2 w-full border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-accent"
           placeholder="Jan Novák"
         >
-        <p v-if="form.errors.customer_name" class="mt-2 text-sm text-red-300 uppercase">
+        <p v-if="form.errors.customer_name" class="mt-2 text-sm text-red-300">
           {{ form.errors.customer_name }}
         </p>
       </div>
@@ -51,10 +51,10 @@ const emit = defineEmits<{
         <input
           v-model="form.customer_email"
           type="email"
-          class="mt-2 w-full border border-white/10 bg-white/5 px-4 py-3 text-white uppercase outline-none transition focus:border-accent"
+          class="mt-2 w-full border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-accent"
           placeholder="jan@example.cz"
         >
-        <p v-if="form.errors.customer_email" class="mt-2 text-sm text-red-300 uppercase">
+        <p v-if="form.errors.customer_email" class="mt-2 text-sm text-red-300">
           {{ form.errors.customer_email }}
         </p>
       </div>
@@ -64,10 +64,10 @@ const emit = defineEmits<{
         <input
           v-model="form.customer_phone"
           type="text"
-          class="mt-2 w-full border border-white/10 bg-white/5 px-4 py-3 text-white uppercase outline-none transition focus:border-accent"
+          class="mt-2 w-full border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-accent"
           placeholder="+420 777 000 000"
         >
-        <p v-if="form.errors.customer_phone" class="mt-2 text-sm text-red-300 uppercase">
+        <p v-if="form.errors.customer_phone" class="mt-2 text-sm text-red-300">
           {{ form.errors.customer_phone }}
         </p>
       </div>
@@ -76,10 +76,10 @@ const emit = defineEmits<{
         <label class="block text-white/65 uppercase text-xs tracking-[0.2em]">Zpráva</label>
         <textarea
           v-model="form.customer_message"
-          class="mt-2 min-h-[140px] w-full border border-white/10 bg-white/5 px-4 py-3 text-white uppercase outline-none transition focus:border-accent"
+          class="mt-2 min-h-[140px] w-full border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-accent"
           placeholder="Upřesněte požadavek, termín nebo montáž."
         />
-        <p v-if="form.errors.customer_message" class="mt-2 text-sm text-red-300 uppercase">
+        <p v-if="form.errors.customer_message" class="mt-2 text-sm text-red-300">
           {{ form.errors.customer_message }}
         </p>
       </div>

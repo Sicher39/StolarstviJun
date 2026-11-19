@@ -7,6 +7,7 @@ use App\Filament\Resources\DoorModelResource\Pages\EditDoorModel;
 use App\Filament\Resources\DoorModelResource\Pages\ListDoorModels;
 use App\Models\Decor;
 use App\Models\DoorModel;
+use App\Services\VatCalculator;
 use Closure;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -69,9 +70,9 @@ class DoorModelResource extends Resource
                     ->default(0)
                     ->step('0.01')
                     ->live()
-                    ->afterStateUpdated(fn (Set $set, mixed $state): mixed => $set('base_price_with_vat', round((float) $state * 1.21, 2))),
+                    ->afterStateUpdated(fn (Set $set, mixed $state): mixed => $set('base_price_with_vat', VatCalculator::applyRate((float) $state))),
                 TextInput::make('base_price_with_vat')
-                    ->label('Základní cena s DPH (21 %)')
+                    ->label(fn (): string => 'Základní cena s DPH ('.self::vatRateLabel().')')
                     ->numeric()
                     ->disabled()
                     ->dehydrated(false),
@@ -180,8 +181,8 @@ class DoorModelResource extends Resource
                     ->money('CZK', divideBy: 1)
                     ->sortable(),
                 TextColumn::make('base_price_with_vat')
-                    ->label('Cena s DPH (21 %)')
-                    ->state(fn (DoorModel $record): float => round((float) $record->base_price_without_vat * 1.21, 2))
+                    ->label(fn (): string => 'Cena s DPH ('.self::vatRateLabel().')')
+                    ->state(fn (DoorModel $record): float => VatCalculator::applyRate((float) $record->base_price_without_vat))
                     ->money('CZK', divideBy: 1)
                     ->sortable(),
                 IconColumn::make('active')
@@ -207,6 +208,16 @@ class DoorModelResource extends Resource
     public static function getRelations(): array
     {
         return [];
+    }
+
+    /**
+     * Formatted VAT rate used in field and column labels.
+     */
+    private static function vatRateLabel(): string
+    {
+        $rate = rtrim(rtrim(number_format(VatCalculator::rate(), 2, ',', ' '), '0'), ',');
+
+        return $rate.' %';
     }
 
     public static function getPages(): array

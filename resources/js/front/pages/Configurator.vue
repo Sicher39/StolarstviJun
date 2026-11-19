@@ -12,7 +12,7 @@ import ConfiguratorSurchargeStep from '@/front/components/Configurator/Configura
 import ConfiguratorVariantStep from '@/front/components/Configurator/ConfiguratorVariantStep.vue'
 import DoorPreview from '@/front/components/Configurator/DoorPreview.vue'
 import type { DecorOption, DoorModel, DoorVariant, GlassOption, PreviewScene, PreviewSceneMaterial, SurchargeOption } from '@/front/components/Configurator/types'
-import { formatPrice, variantLabel } from '@/front/components/Configurator/utils'
+import { formatPrice, priceWithVat as calculatePriceWithVat, variantLabel } from '@/front/components/Configurator/utils'
 import FullSection from '@/front/components/Sections/FullSection.vue'
 import MainLayout from '@/front/layouts/MainLayout.vue'
 
@@ -30,6 +30,7 @@ interface ConfiguratorStep {
 const props = defineProps<{
   doorModels: DoorModel[]
   previewScene: PreviewScene | null
+  vatRate: number
 }>()
 
 defineOptions({
@@ -221,7 +222,7 @@ const priceWithoutVat = computed((): number => {
     + surchargeTotal
 })
 
-const priceWithVat = computed((): number => Math.round(priceWithoutVat.value * 1.21 * 100) / 100)
+const priceWithVat = computed((): number => calculatePriceWithVat(priceWithoutVat.value, props.vatRate))
 const flashSuccess = computed((): string => page.props.flash?.success ?? '')
 const canSubmitInquiry = computed((): boolean => selectedModelId.value !== null && selectedVariantId.value !== null)
 
@@ -344,7 +345,7 @@ const selectedPreviewImageUrl = computed((): string | null => {
           <p class="text-accent text-xs uppercase tracking-[0.3em]">Konfigurátor</p>
           <h1 class="mt-3 text-4xl leading-none text-white uppercase lg:text-6xl">Dveře na míru</h1>
         </div>
-        <p class="text-right text-sm uppercase tracking-[0.16em] text-white/55">
+        <p class="text-right text-sm tracking-[0.16em] text-white/55">
           Orientační cena: <span class="text-accent">{{ formatPrice(priceWithVat) }} s DPH</span>
         </p>
       </header>
@@ -356,9 +357,9 @@ const selectedPreviewImageUrl = computed((): string | null => {
           <div class="flex items-start justify-between gap-4">
             <div>
               <p class="text-accent text-xs uppercase tracking-[0.25em]">Náhled</p>
-              <h2 class="mt-2 text-3xl text-white uppercase">{{ selectedModel?.name ?? 'Vyberte model' }}</h2>
+              <h2 class="mt-2 text-3xl text-white">{{ selectedModel?.name ?? 'Vyberte model' }}</h2>
             </div>
-            <p class="text-right text-xs uppercase tracking-[0.18em] text-white/50">{{ selectedVariant ? variantLabel(selectedVariant) : '—' }}</p>
+            <p class="text-right text-xs tracking-[0.18em] text-white/50">{{ selectedVariant ? variantLabel(selectedVariant) : '—' }}</p>
           </div>
 
           <DoorPreview
@@ -401,7 +402,7 @@ const selectedPreviewImageUrl = computed((): string | null => {
                 <p class="text-accent text-xs uppercase tracking-[0.25em]">Krok 0{{ activeStep }}</p>
                 <h2 class="mt-2 text-3xl text-white uppercase">{{ currentStepLabel }}</h2>
               </div>
-              <p class="text-right text-sm uppercase text-white/55">{{ formatPrice(priceWithVat) }} s DPH</p>
+              <p class="text-right text-sm text-white/55">{{ formatPrice(priceWithVat) }} s DPH</p>
             </div>
 
             <div v-if="activeStep === sceneStepId" class="space-y-6">
@@ -425,30 +426,35 @@ const selectedPreviewImageUrl = computed((): string | null => {
               v-else-if="activeStep === modelStepId"
               :door-models="doorModels"
               :selected-model-id="selectedModelId"
+              :vat-rate="vatRate"
               @update:selected-model-id="selectModel"
             />
             <ConfiguratorVariantStep
               v-else-if="activeStep === variantStepId"
               :variants="selectedModel?.variants ?? []"
               :selected-variant-id="selectedVariantId"
+              :vat-rate="vatRate"
               @update:selected-variant-id="selectVariant"
             />
             <ConfiguratorDecorStep
               v-else-if="activeStep === decorStepId"
               :decors="selectedModel?.decors ?? []"
               :selected-decor-id="selectedDecorId"
+              :vat-rate="vatRate"
               @update:selected-decor-id="selectDecor"
             />
             <ConfiguratorGlassStep
               v-else-if="activeStep === glassStepId && glassAvailableForVariant"
               :glasses="availableGlasses"
               :selected-glass-id="selectedGlassId"
+              :vat-rate="vatRate"
               @update:selected-glass-id="selectGlass"
             />
             <ConfiguratorSurchargeStep
               v-else-if="activeStep === surchargeStepId && (selectedModel?.surcharges.length ?? 0) > 0"
               :surcharges="selectedModel?.surcharges ?? []"
               :selected-surcharge-ids="selectedSurchargeIds"
+              :vat-rate="vatRate"
               @toggle-surcharge="toggleSurcharge"
             />
             <div v-else-if="activeStep === inquiryStepId" class="grid gap-5 lg:grid-cols-2">
@@ -458,7 +464,9 @@ const selectedPreviewImageUrl = computed((): string | null => {
                 :selected-decor-name="selectedDecor?.name ?? null"
                 :selected-glass-name="selectedGlass?.name ?? null"
                 :selected-surcharge-names="selectedSurcharges.map((surcharge) => surcharge.name)"
+                :price-without-vat="priceWithoutVat"
                 :price-with-vat="priceWithVat"
+                :vat-rate="vatRate"
               />
               <ConfiguratorInquiryForm
                 :form="inquiryForm"

@@ -5,6 +5,7 @@ import { formatPriceWithVat } from './utils'
 defineProps<{
   surcharges: SurchargeOption[]
   selectedSurchargeIds: number[]
+  vatRate: number
 }>()
 
 const emit = defineEmits<{
@@ -23,10 +24,10 @@ const emit = defineEmits<{
       @click="emit('toggle-surcharge', surcharge.id)"
     >
       <span>
-        <span class="block text-base text-white uppercase">{{ surcharge.name }}</span>
-        <span class="mt-1 block text-[10px] uppercase tracking-[0.16em] text-white/50">{{ surcharge.code }}</span>
+        <span class="block text-base text-white">{{ surcharge.name }}</span>
+        <span class="mt-1 block text-[10px] tracking-[0.16em] text-white/50">{{ surcharge.code }}</span>
       </span>
-      <span class="shrink-0 text-xs uppercase text-accent">+{{ formatPriceWithVat(surcharge.price_without_vat) }} vč. DPH</span>
+      <span class="shrink-0 text-xs text-accent">+{{ formatPriceWithVat(surcharge.price_without_vat, vatRate) }} vč. DPH</span>
     </button>
   </div>
 </template>

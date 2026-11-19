@@ -5,6 +5,7 @@ import { formatPriceWithVat, swatchStyle } from './utils'
 defineProps<{
   glasses: GlassOption[]
   selectedGlassId: number | null
+  vatRate: number
 }>()
 
 const emit = defineEmits<{
@@ -24,8 +25,8 @@ const emit = defineEmits<{
     >
       <span class="h-12 w-12 shrink-0 overflow-hidden border border-white/10 bg-white/5" :style="swatchStyle(glass.preview_image_url ?? glass.texture_image_url, 'glass')" />
       <span class="min-w-0 flex-1">
-        <span class="block text-base text-white uppercase">{{ glass.name }}</span>
-        <span class="mt-1 block text-xs uppercase text-white/55">{{ glass.price_modifier > 0 ? '+' : '' }}{{ formatPriceWithVat(glass.price_modifier) }} vč. DPH</span>
+        <span class="block text-base text-white">{{ glass.name }}</span>
+        <span class="mt-1 block text-xs text-white/55">{{ glass.price_modifier > 0 ? '+' : '' }}{{ formatPriceWithVat(glass.price_modifier, vatRate) }} vč. DPH</span>
       </span>
     </button>
   </div>

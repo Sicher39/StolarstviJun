@@ -1,128 +1,23 @@
 <script setup lang="ts">
-import MagnifyingGlass from '@/front/components/IconComponents/MagnifyingGlass.vue'
 import ArrowLeft from '@/front/components/Icons/ArrowLeft.vue'
+import ReferenceCard from '@/front/components/ReffereceCardGallery/ReferenceCard.vue'
+import {
+    doorReferenceCards,
+    type ReferenceCard as ReferenceCardItem,
+    type ReferenceImage
+} from '@/front/components/ReffereceCardGallery/referenceCategories'
 import { Link, router } from '@inertiajs/vue3'
 import PhotoSwipe from 'photoswipe'
 import 'photoswipe/style.css'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-type GalleryImage = {
-    url: string
-    alt?: string
-}
-
-type ReferenceItem = {
-    id: number
-    header: string
-    note: string
-    images: GalleryImage[]
-}
+type GalleryImage = ReferenceImage
+type ReferenceItem = ReferenceCardItem
 
 const maxCards = 10
 const dragThreshold = 8
 
-const references: ReferenceItem[] = [
-    {
-        id: 1,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/small/Doors01.webp', alt: 'Reference 1 - 1' },
-            { url: '/img/bg/small/Doors02.webp', alt: 'Reference 1 - 2' },
-            { url: '/img/bg/small/Doors03.webp', alt: 'Reference 1 - 3' }
-        ]
-    },
-    {
-        id: 2,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/headers/red-door.webp', alt: 'Reference 2 - 1' },
-            { url: '/img/bg/headers/wood-door.webp', alt: 'Reference 2 - 2' }
-        ]
-    },
-    {
-        id: 3,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/small/Doors02.webp', alt: 'Reference 3 - 1' },
-            { url: '/img/bg/small/Doors03.webp', alt: 'Reference 3 - 2' }
-        ]
-    },
-    {
-        id: 4,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/headers/wood-door.webp', alt: 'Reference 4 - 1' },
-            { url: '/img/bg/headers/red-door.webp', alt: 'Reference 4 - 2' }
-        ]
-    },
-    {
-        id: 5,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/small/Doors03.webp', alt: 'Reference 5 - 1' },
-            { url: '/img/bg/small/Doors01.webp', alt: 'Reference 5 - 2' }
-        ]
-    },
-    {
-        id: 6,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/small/Doors01.webp', alt: 'Reference 6 - 1' },
-            { url: '/img/bg/small/Doors02.webp', alt: 'Reference 6 - 2' }
-        ]
-    },
-    {
-        id: 7,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/headers/red-door.webp', alt: 'Reference 7 - 1' },
-            { url: '/img/bg/small/Doors03.webp', alt: 'Reference 7 - 2' }
-        ]
-    },
-    {
-        id: 8,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/headers/wood-door.webp', alt: 'Reference 8 - 1' },
-            { url: '/img/bg/small/Doors01.webp', alt: 'Reference 8 - 2' }
-        ]
-    },
-    {
-        id: 9,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/small/Doors02.webp', alt: 'Reference 9 - 1' },
-            { url: '/img/bg/headers/red-door.webp', alt: 'Reference 9 - 2' }
-        ]
-    },
-    {
-        id: 10,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/small/Doors03.webp', alt: 'Reference 10 - 1' },
-            { url: '/img/bg/headers/wood-door.webp', alt: 'Reference 10 - 2' }
-        ]
-    },
-    {
-        id: 11,
-        header: 'dveře jako ',
-        note: 'Babice nad Svitavou',
-        images: [
-            { url: '/img/bg/small/Doors01.webp', alt: 'Reference 11 - 1' },
-            { url: '/img/bg/small/Doors02.webp', alt: 'Reference 11 - 2' }
-        ]
-    }
-]
+const references: ReferenceItem[] = doorReferenceCards
 
 const slider = ref<HTMLElement | null>(null)
 const canScrollLeft = ref(false)
@@ -478,29 +373,16 @@ onBeforeUnmount(() => {
                 ]"
             >
                 <div class="flex w-max gap-5 pl-5 pr-4 lg:gap-20 lg:pl-96">
-                    <button
+                    <ReferenceCard
                         v-for="reference in visibleReferences"
                         :key="reference.id"
-                        type="button"
-                        class="group relative z-10 w-[150px] flex justify-center items-center text-left shrink-0 overflow-hidden border border-white bg-cover bg-center bg-no-repeat px-10 py-48 lg:w-[350px] cursor-pointer"
-                        :style="{ backgroundImage: `url(${reference.images[0]?.url ?? ''})` }"
+                        class="z-10 w-[150px] shrink-0 px-10 py-48 lg:w-[350px]"
+                        :image="reference.images[0]?.url ?? ''"
+                        :header="reference.header"
+                        :note="reference.note"
                         :aria-label="`Otevřít galerii reference ${reference.id}`"
                         @click="handleReferenceClick(reference, $event)"
-                    >
-                        <span
-                            class="absolute inset-0  bg-dark/60 transition duration-500 group-hover:bg-dark/0"
-                        />
-                        <span class="relative z-10 text-white group-hover:text-white/20">
-                            <MagnifyingGlass />
-                        </span>
-                      <span class="absolute w-full bottom-0 group-hover:bg-dark/60">
-                        <template class="block px-4 pb-2 w-full">
-
-                        <span class="font-main uppercase text-sm text-white">{{ reference.header }}</span> <br>
-                        <span class="font-main text-sm text-white">{{ reference.note }}</span>
-                        </template>
-                      </span>
-                    </button>
+                    />
 
                     <Link
                         v-if="hasMoreReferences"

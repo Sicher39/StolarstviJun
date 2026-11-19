@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import MainLayout from "@/front/layouts/MainLayout.vue";
 import SecondHeaderSection from "@/front/components/Sections/SecondHeaderSection.vue";
-import ScrollLinesRevealSection from "@/front/components/Sections/ScrollLinesRevealSection.vue";
+import ReferenceCategorySections from "@/front/components/ReffereceCardGallery/ReferenceCategorySections.vue";
 
 defineOptions({
   layout: MainLayout
@@ -22,5 +22,7 @@ defineOptions({
     </template>
   </SecondHeaderSection>
 
+  <!-- The icon bar rendered inside stays sticky below the fixed site header and scrolls to its category strip. -->
+  <ReferenceCategorySections/>
 
 </template>

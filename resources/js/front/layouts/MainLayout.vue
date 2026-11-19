@@ -5,7 +5,7 @@ import Navigation from '@/front/components/Navigation/Navigation.vue'
 
 <template>
   <div class="w-full bg-dark ">
-    <header class="z-40 fixed w-full">
+    <header id="site-header" class="z-40 fixed w-full">
       <Navigation />
     </header>
 

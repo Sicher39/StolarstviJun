@@ -2,17 +2,32 @@ import type { CSSProperties } from 'vue'
 
 import type { DoorVariant } from './types'
 
+const CURRENCY_LABEL = 'Kč'
+
+// The currency label is appended manually so the output always uses the Czech „Kč“ spelling and never
+// depends on the ICU currency symbol of the runtime.
 export const formatPrice = (value: number): string => {
-  return new Intl.NumberFormat('cs-CZ', {
-    style: 'currency',
-    currency: 'CZK',
+  const formatted = new Intl.NumberFormat('cs-CZ', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value)
+
+  return `${formatted}\u00A0${CURRENCY_LABEL}`
 }
 
-export const formatPriceWithVat = (priceWithoutVat: number): string => {
-  return formatPrice(Math.round(priceWithoutVat * 1.21 * 100) / 100)
+export const formatVatRate = (vatRate: number): string => {
+  return new Intl.NumberFormat('cs-CZ', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(vatRate)
+}
+
+export const priceWithVat = (priceWithoutVat: number, vatRate: number): number => {
+  return Math.round(priceWithoutVat * (1 + vatRate / 100) * 100) / 100
+}
+
+export const formatPriceWithVat = (priceWithoutVat: number, vatRate: number): string => {
+  return formatPrice(priceWithVat(priceWithoutVat, vatRate))
 }
 
 export const variantLabel = (variant: DoorVariant): string => {
@@ -20,6 +35,20 @@ export const variantLabel = (variant: DoorVariant): string => {
   const details = [variant.opening_type, variant.opening_direction].filter(Boolean).join(' / ')
 
   return [variant.code, size, details].filter(Boolean).join(' • ')
+}
+
+// Czech counting uses the nominative plural only for 2–4. Every other value (0, 5, 11, 21, 25, …) takes the
+// genitive plural, so the noun cannot be concatenated as a fixed string next to the number.
+export const formatVariantCount = (count: number): string => {
+  if (count === 1) {
+    return `${count} varianta`
+  }
+
+  if (count >= 2 && count <= 4) {
+    return `${count} varianty`
+  }
+
+  return `${count} variant`
 }
 
 export const swatchStyle = (url: string | null, type: 'decor' | 'glass'): CSSProperties => {

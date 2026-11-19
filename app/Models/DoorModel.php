@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\VatCalculator;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -91,7 +92,7 @@ class DoorModel extends Model implements HasMedia
         return Attribute::make(
             set: fn (mixed $value): array => [
                 'base_price_without_vat' => $value,
-                'base_price_with_vat' => round((float) $value * 1.21, 2),
+                'base_price_with_vat' => VatCalculator::applyRate((float) $value),
             ],
         );
     }

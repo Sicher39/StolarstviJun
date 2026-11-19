@@ -8,6 +8,7 @@ use App\Models\DoorVariant;
 use App\Models\GlassType;
 use App\Models\Inquiry;
 use App\Models\Surcharge;
+use App\Services\VatCalculator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -63,7 +64,7 @@ class ConfiguratorInquiryController extends Controller
             + (float) ($glassType?->price_modifier ?? 0)
             + $surcharges->sum(fn (Surcharge $surcharge): float => (float) $surcharge->price_without_vat);
 
-        $priceWithVat = round($priceWithoutVat * 1.21, 2);
+        $priceWithVat = VatCalculator::applyRate($priceWithoutVat);
 
         $configuration = [
             'door_model' => [
@@ -109,7 +110,7 @@ class ConfiguratorInquiryController extends Controller
             'totals' => [
                 'price_without_vat' => round($priceWithoutVat, 2),
                 'price_with_vat' => $priceWithVat,
-                'vat_rate' => 21,
+                'vat_rate' => VatCalculator::rate(),
             ],
         ];
 

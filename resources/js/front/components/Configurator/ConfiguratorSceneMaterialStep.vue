@@ -31,7 +31,7 @@ const emit = defineEmits<{
           :style="swatchStyle(material.preview_image_url ?? material.texture_image_url, 'decor')"
         />
         <span class="min-w-0 flex-1">
-          <span class="block text-base text-white uppercase">{{ material.name }}</span>
+          <span class="block text-base text-white">{{ material.name }}</span>
           <span class="mt-1 block text-xs uppercase text-white/55">{{ material.type === 'wall' ? 'Stěna' : 'Podlaha' }}</span>
         </span>
       </button>

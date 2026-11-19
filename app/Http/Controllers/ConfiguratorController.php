@@ -9,6 +9,7 @@ use App\Models\GlassType;
 use App\Models\PreviewScene;
 use App\Models\PreviewSceneMaterial;
 use App\Models\Surcharge;
+use App\Services\VatCalculator;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -48,7 +49,7 @@ class ConfiguratorController extends Controller
                     'category' => $doorModel->category,
                     'description' => $doorModel->description,
                     'base_price_without_vat' => (float) $doorModel->base_price_without_vat,
-                    'base_price_with_vat' => round((float) $doorModel->base_price_without_vat * 1.21, 2),
+                    'base_price_with_vat' => VatCalculator::applyRate((float) $doorModel->base_price_without_vat),
                     'preview_image_url' => $this->mediaUrl($doorModel, 'preview_image'),
                     'initial_variant_id' => $initialVariant?->id,
                     'initial_decor_id' => $initialDecor?->id,
@@ -130,6 +131,7 @@ class ConfiguratorController extends Controller
 
         return Inertia::render('Configurator', [
             'doorModels' => $doorModels,
+            'vatRate' => VatCalculator::rate(),
             'previewScene' => $previewScene ? [
                 'id' => $previewScene->id,
                 'name' => $previewScene->name,

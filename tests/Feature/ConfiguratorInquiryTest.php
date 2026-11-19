@@ -56,6 +56,33 @@ class ConfiguratorInquiryTest extends TestCase
         ]);
     }
 
+    public function test_configurator_inquiry_uses_the_configured_vat_rate(): void
+    {
+        config(['pricing.vat_rate' => 12]);
+
+        [$doorModel, $variant, $decor, $glassType, $surcharge] = $this->createCompatibleCatalogSelection();
+
+        $this->post(route('front.configurator.inquiry.store'), [
+            'door_model_id' => $doorModel->id,
+            'door_variant_id' => $variant->id,
+            'decor_id' => $decor->id,
+            'glass_type_id' => $glassType->id,
+            'surcharge_ids' => [$surcharge->id],
+            'customer_name' => 'Jan Novak',
+            'customer_email' => 'jan@example.com',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas(Inquiry::class, [
+            'customer_email' => 'jan@example.com',
+            'price_without_vat' => 1550,
+            'price_with_vat' => 1736,
+        ]);
+
+        $inquiry = Inquiry::query()->where('customer_email', 'jan@example.com')->firstOrFail();
+
+        $this->assertEquals(12.0, (float) $inquiry->configuration['totals']['vat_rate']);
+    }
+
     public function test_configurator_inquiry_rejects_variant_from_different_model(): void
     {
         [$doorModel] = $this->createCompatibleCatalogSelection();
