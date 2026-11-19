@@ -10,7 +10,7 @@ defineOptions({
 <template>
 
   <SecondHeaderSection
-      img="wood-door"
+      img="references"
   >
     <template v-slot:header>
       Galerie <br>

@@ -175,7 +175,11 @@ const woodFactory = ref([
                   </Link>
                 </div>
                 <div class="block mt-32">
-                  <img src="/img/bg/small/Doors02.webp" class="w-full" alt="">
+                  <!-- The invisible copy keeps the original box height, so the shorter photo stays anchored by its bottom-left corner -->
+                  <div class="relative w-full">
+                    <img src="/img/bg/small/Doors02.webp" class="invisible w-full" alt="" aria-hidden="true">
+                    <img src="/img/bg/small/Doors02.webp" class="absolute bottom-0 left-0 w-full max-w-[905px]" alt="">
+                  </div>
                 </div>
               </div>
 
@@ -185,15 +189,15 @@ const woodFactory = ref([
                   <p>Připravili jsme pro vás konfigurátor dveří</p>
                 </div>
                 <div class="col-span-6 relative -left-[180px] mt-20">
-                  <img src="/img/bg/small/Doors03.webp" class="w-full" alt="">
+                  <img src="/img/bg/small/configurator-doors.webp" class="w-full" alt="">
                 </div>
                 <div class="col-span-4 relative -left-[140px] mt-10">
 
                   <p class="mt-10">Navrhněte si dveře přesně podle svých představ – od typu (interiérové, vchodové či
                     protipožární) až po každý detail provedení.
-                    V konfigurátoru si snadno zvolíte materiál, design i kování, aby vše dokonale ladilo s vaším
+                    V konfigurátoru si snadno zvolíte materiál, design i&nbsp;kování, aby vše dokonale ladilo s&nbsp;vaším
                     prostorem.
-                    Okamžitě tak získáte přehled o výsledné podobě i orientační ceně dveří, které vám opravdu
+                    Okamžitě tak získáte přehled o&nbsp;výsledné podobě i&nbsp;orientační ceně dveří, které vám opravdu
                     vyhovují.</p>
                   <Link :href="route('front.configurator')" class="block w-[250px] group mt-20">
                     <ButtonMain><span class="uppercase font-main">spustit konfigurátor</span></ButtonMain>
@@ -216,7 +220,7 @@ const woodFactory = ref([
           ze dřeva</h3>
         <p class="mt-10 reveal text-xl uppercase">
           Schody, obložení, kuchyňské linky,
-          vestavěné skříně <br> i další prvky přesně podle prostoru a přání zákazníka.
+          vestavěné skříně <br>i další prvky přesně podle prostoru a&nbsp;přání zákazníka.
         </p>
       </div>
       <div class="block">
