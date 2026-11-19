@@ -7,16 +7,26 @@ import ReferenceGallerySlider from "@/front/components/ReffereceCardGallery/Refe
 import FullSection from "@/front/components/Sections/FullSection.vue";
 import VerticalScrollLine from "@/front/components/gsap/VerticalScrollLine.vue";
 import TwoGridSection from "@/front/components/Sections/TwoGridSection.vue";
-import {ref} from "vue";
+import { computed, ref } from "vue";
+import type { ReferenceCard as ReferenceCardItem } from "@/front/components/ReffereceCardGallery/referenceCategories";
 
 defineOptions({
     layout: MainLayout
 })
 
+// Published references assigned to the Doors page. The page body and gallery above stay untouched.
+const props = withDefaults(defineProps<{
+    references?: ReferenceCardItem[]
+}>(), {
+    references: () => []
+})
+
+const hasReferences = computed<boolean>(() => props.references.length > 0)
+
 
 const sections = ref([
     {
-        img: 'Doors03',
+        img: 'custom-interior-door',
         title: 'Interiérové dveře na míru vašemu prostoru',
         listTitle: 'Možnosti provedení:',
         texts: [
@@ -32,7 +42,7 @@ const sections = ref([
         ]
     },
     {
-        img: 'Doors03',
+        img: 'custom-entrance-door',
         title: 'Bezpečné a reprezentativní vchodové dveře',
         listTitle: 'Důraz klademe na:',
         texts: [
@@ -50,7 +60,7 @@ const sections = ref([
         ]
     },
     {
-        img: 'Doors03',
+        img: 'custom-atypical-door',
         title: 'Když chcete něco výjimečného',
         listTitle: '',
         texts: [
@@ -106,13 +116,13 @@ const sections = ref([
     </div>
 
 
-    <FullSection>
+    <FullSection v-if="hasReferences">
         <div class="block my-48">
             <h4 class="text-accent text-6xl 2xl:text-8xl reveal">Galerie <br> realizovaných zakázek,</h4>
             <h5 class="mt-5">které vydrží roky, ne sezóny.</h5>
         </div>
         <div class="block w-full">
-            <ReferenceGallerySlider/>
+            <ReferenceGallerySlider :references="props.references"/>
         </div>
     </FullSection>
 </template>

@@ -16,7 +16,7 @@ const props = withDefaults(defineProps<{
             <img :src="`/img/icons/${props.icon}.svg`" class="w-7/12" alt="ikona">
         </div>
         <div class="flex justify-center">
-            <div class="border-accent border-b w-32"/>
+            <div class="border-accent border-b w-32 my-2"/>
         </div>
         <h3 class="text-center text-white text-xl font-main">{{ props.text }}</h3>
     </div>

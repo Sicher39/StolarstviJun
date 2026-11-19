@@ -24,15 +24,17 @@ const isActive = (key: ReferenceCategoryKey): boolean => props.activeKey === key
 </script>
 
 <template>
+    <!-- The icon row keeps the ~7/12 width the References page used before the sticky bar existed;
+         on mobile it stays a full-width snap scroller so the cards never get squeezed. -->
     <nav
-        class="flex w-full snap-x snap-mandatory overflow-x-auto scrollbar-hide bg-dark lg:snap-none lg:overflow-visible"
+        class="mx-auto flex w-full snap-x snap-mandatory overflow-x-auto scrollbar-hide bg-dark lg:w-4/12 lg:snap-none lg:justify-center lg:overflow-visible"
         aria-label="Kategorie referencí"
     >
         <button
             v-for="category in props.categories"
             :key="category.key"
             type="button"
-            class="flex min-w-[6.5rem] flex-1 snap-start flex-col border-b-2 transition duration-300 cursor-pointer"
+            class="flex min-w-[6.5rem] flex-1 snap-start flex-col transition duration-300 cursor-pointer lg:max-w-[25%]"
             :class="
                 isActive(category.key)
                     ? 'border-accent opacity-100'

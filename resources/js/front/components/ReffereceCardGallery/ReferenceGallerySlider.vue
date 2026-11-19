@@ -2,7 +2,6 @@
 import ArrowLeft from '@/front/components/Icons/ArrowLeft.vue'
 import ReferenceCard from '@/front/components/ReffereceCardGallery/ReferenceCard.vue'
 import {
-    doorReferenceCards,
     type ReferenceCard as ReferenceCardItem,
     type ReferenceImage
 } from '@/front/components/ReffereceCardGallery/referenceCategories'
@@ -17,7 +16,16 @@ type ReferenceItem = ReferenceCardItem
 const maxCards = 10
 const dragThreshold = 8
 
-const references: ReferenceItem[] = doorReferenceCards
+// Cards are supplied by the page that renders the slider (Doors / Custom Production), already filtered
+// to the published references assigned to that page.
+const props = withDefaults(
+    defineProps<{
+        references?: ReferenceItem[]
+    }>(),
+    {
+        references: () => []
+    }
+)
 
 const slider = ref<HTMLElement | null>(null)
 const canScrollLeft = ref(false)
@@ -33,15 +41,15 @@ let cleanup: (() => void) | null = null
 let photoSwipeInstance: PhotoSwipe | null = null
 
 const hasMoreReferences = computed(() => {
-    return references.length > maxCards
+    return props.references.length > maxCards
 })
 
 const visibleReferences = computed(() => {
     if (hasMoreReferences.value) {
-        return references.slice(0, maxCards - 1)
+        return props.references.slice(0, maxCards - 1)
     }
 
-    return references.slice(0, maxCards)
+    return props.references.slice(0, maxCards)
 })
 
 const sliderCursorClass = computed(() => {
@@ -345,7 +353,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <section class="py-10 mb-32">
+    <section
+        v-if="visibleReferences.length"
+        class="py-10 mb-32"
+    >
         <div class="relative">
             <button
                 v-if="canScrollLeft"

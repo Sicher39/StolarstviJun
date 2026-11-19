@@ -6,15 +6,25 @@ import ScrollLinesRevealSection from "@/front/components/Sections/ScrollLinesRev
 import FullSection from "@/front/components/Sections/FullSection.vue";
 import VerticalScrollLine from "@/front/components/gsap/VerticalScrollLine.vue";
 import {gsap} from "gsap";
-import {nextTick, onBeforeUnmount, onMounted, ref} from "vue";
+import {computed, nextTick, onBeforeUnmount, onMounted, ref} from "vue";
 import {ScrollTrigger} from "gsap/ScrollTrigger";
 import TwoGridSection from "@/front/components/Sections/TwoGridSection.vue";
 import VerticalScrollCards from "@/front/components/VerticalScrollCards/VerticalScrollCards.vue";
 import ReferenceGallerySlider from "@/front/components/ReffereceCardGallery/ReferenceGallerySlider.vue";
+import type { ReferenceCard as ReferenceCardItem } from "@/front/components/ReffereceCardGallery/referenceCategories";
 
 defineOptions({
   layout: MainLayout
 })
+
+// Published references assigned to the Custom Manufacturing page; the page body above is untouched.
+const props = withDefaults(defineProps<{
+  references?: ReferenceCardItem[]
+}>(), {
+  references: () => []
+})
+
+const hasReferences = computed<boolean>(() => props.references.length > 0)
 
 let revealGsapContext: gsap.Context | null = null
 
@@ -139,13 +149,13 @@ const sections = ref([
     Velký důraz klademe na detaily a technické návaznosti – spoje, kotvení, povrchové úpravy, kování nebo montážní řešení.
   </ScrollLinesRevealSection>
 
-  <FullSection>
+  <FullSection v-if="hasReferences">
     <div class="block my-48">
       <h4 class="text-accent text-6xl 2xl:text-8xl reveal">Galerie <br> realizovaných zakázek,</h4>
       <h5 class="mt-5">které vydrží roky, ne sezóny.</h5>
     </div>
     <div class="block w-full">
-      <ReferenceGallerySlider/>
+      <ReferenceGallerySlider :references="props.references"/>
     </div>
   </FullSection>
 </template>
