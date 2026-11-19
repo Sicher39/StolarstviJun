@@ -91,6 +91,8 @@ export interface DoorModel {
   base_price_without_vat: number
   base_price_with_vat: number
   preview_image_url: string | null
+  initial_variant_id: number | null
+  initial_decor_id: number | null
   variants: DoorVariant[]
   decors: DecorOption[]
   glasses: GlassOption[]

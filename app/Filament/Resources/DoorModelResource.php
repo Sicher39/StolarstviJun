@@ -5,7 +5,9 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\DoorModelResource\Pages\CreateDoorModel;
 use App\Filament\Resources\DoorModelResource\Pages\EditDoorModel;
 use App\Filament\Resources\DoorModelResource\Pages\ListDoorModels;
+use App\Models\Decor;
 use App\Models\DoorModel;
+use Closure;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -15,6 +17,8 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -92,6 +96,70 @@ class DoorModelResource extends Resource
                     ->multiple()
                     ->preload()
                     ->searchable(),
+                Section::make('Výchozí volby konfigurátoru')
+                    ->description(fn (?DoorModel $record): string => $record === null
+                        ? 'Nepovinné a vyplnitelné až po uložení modelu. Model teď uložte, poté přidejte varianty a výchozí variantu i dekor vyberte při úpravě modelu.'
+                        : 'Nepovinné. Nevyplněnou volbu nahradí konfigurátor první vloženou variantou a prvním dostupným dekorem modelu.')
+                    ->schema([
+                        // The defaults can only point at variants/decors that exist, so they must never be part of
+                        // the create payload: a hidden field is not dehydrated by Filament and the model can be
+                        // saved before any variant exists.
+                        Select::make('default_variant_id')
+                            ->label('Výchozí varianta')
+                            ->helperText('Nabízejí se pouze varianty tohoto modelu. Varianty přidejte v sekci „Varianty dveří“ a výchozí volbu pak nastavte při úpravě modelu.')
+                            ->hiddenOn('create')
+                            ->options(fn (?DoorModel $record): array => $record === null
+                                ? []
+                                : $record->variants()->orderBy('id')->pluck('code', 'id')->all())
+                            ->searchable()
+                            ->preload()
+                            ->rules([
+                                fn (?DoorModel $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+                                    if (blank($value)) {
+                                        return;
+                                    }
+
+                                    if ($record === null || ! $record->variants()->whereKey($value)->exists()) {
+                                        $fail('Vybraná výchozí varianta nepatří tomuto modelu.');
+                                    }
+                                },
+                            ]),
+                        Select::make('default_decor_id')
+                            ->label('Výchozí dekor')
+                            ->helperText('Nabízejí se pouze aktivní dekory přiřazené tomuto modelu. Výchozí dekor nastavte při úpravě modelu.')
+                            ->hiddenOn('create')
+                            ->options(fn (?DoorModel $record): array => $record === null
+                                ? []
+                                : $record->decors()->where('active', true)->orderBy('name')->get()->pluck('name', 'id')->all())
+                            ->searchable()
+                            ->preload()
+                            ->rules([
+                                fn (Get $get, ?DoorModel $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                                    if (blank($value)) {
+                                        return;
+                                    }
+
+                                    if (! Decor::query()->whereKey($value)->where('active', true)->exists()) {
+                                        $fail('Vybraný výchozí dekor není aktivní.');
+
+                                        return;
+                                    }
+
+                                    $pendingDecorIds = collect($get('decors') ?? [])
+                                        ->map(fn (mixed $decorId): int => (int) $decorId)
+                                        ->all();
+
+                                    $isAttachedToModel = in_array((int) $value, $pendingDecorIds, true)
+                                        || ($record !== null && $record->decors()->whereKey($value)->exists());
+
+                                    if (! $isAttachedToModel) {
+                                        $fail('Vybraný výchozí dekor není kompatibilní s tímto modelem.');
+                                    }
+                                },
+                            ]),
+                    ])
+                    ->columns(2)
+                    ->columnSpanFull(),
             ]);
     }
 

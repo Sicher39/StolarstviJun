@@ -38,9 +38,41 @@ defineOptions({
 
 const page = usePage<PageProps>()
 
-const selectedModelId = ref<number | null>(props.doorModels[0]?.id ?? null)
-const selectedVariantId = ref<number | null>(null)
-const selectedDecorId = ref<number | null>(null)
+const initialModel = props.doorModels[0] ?? null
+
+// The payload already resolves the model's effective defaults, but the client stays defensive: a stale or unknown
+// id falls back to the first (lowest id) option published for the model.
+const resolveInitialVariantId = (model: DoorModel | null): number | null => {
+  if (!model) {
+    return null
+  }
+
+  const initialVariantId = model.initial_variant_id
+
+  if (initialVariantId !== null && model.variants.some((variant) => variant.id === initialVariantId)) {
+    return initialVariantId
+  }
+
+  return model.variants[0]?.id ?? null
+}
+
+const resolveInitialDecorId = (model: DoorModel | null): number | null => {
+  if (!model) {
+    return null
+  }
+
+  const initialDecorId = model.initial_decor_id
+
+  if (initialDecorId !== null && model.decors.some((decor) => decor.id === initialDecorId)) {
+    return initialDecorId
+  }
+
+  return model.decors[0]?.id ?? null
+}
+
+const selectedModelId = ref<number | null>(initialModel?.id ?? null)
+const selectedVariantId = ref<number | null>(resolveInitialVariantId(initialModel))
+const selectedDecorId = ref<number | null>(resolveInitialDecorId(initialModel))
 const selectedGlassId = ref<number | null>(null)
 const selectedWallId = ref<number | null>(props.previewScene?.materials.find((material) => material.type === 'wall')?.id ?? null)
 const selectedFloorId = ref<number | null>(props.previewScene?.materials.find((material) => material.type === 'floor')?.id ?? null)
@@ -211,14 +243,21 @@ const previousStep = (): void => {
   }
 }
 
+// Model-scoped selections cannot survive a model change, so they fall back to the model's effective defaults.
+const applyModelDefaults = (model: DoorModel | null): void => {
+  selectedVariantId.value = resolveInitialVariantId(model)
+  selectedDecorId.value = resolveInitialDecorId(model)
+  selectedSurchargeIds.value = []
+  selectedGlassId.value = model?.glasses[0] && model.variants.some((variant) => variant.has_glass) ? model.glasses[0].id : null
+}
+
+// Picking an option only changes the selection and the preview. The visitor advances exclusively via „Pokračovat“.
 const selectModel = (modelId: number | null): void => {
   selectedModelId.value = modelId
-  activeStep.value = variantStepId.value
 }
 
 const selectVariant = (variantId: number | null): void => {
   selectedVariantId.value = variantId
-  activeStep.value = decorStepId.value
 }
 
 const selectDecor = (decorId: number | null): void => {
@@ -265,10 +304,7 @@ const submitInquiry = (): void => {
 }
 
 watch(selectedModel, (model) => {
-  selectedVariantId.value = model?.variants[0]?.id ?? null
-  selectedDecorId.value = null
-  selectedSurchargeIds.value = []
-  selectedGlassId.value = model?.glasses[0] && model.variants.some((variant) => variant.has_glass) ? model.glasses[0].id : null
+  applyModelDefaults(model)
 }, { immediate: true })
 
 watch([selectedVariant, availableGlasses], ([variant, glasses]) => {
@@ -282,10 +318,17 @@ watch([selectedVariant, availableGlasses], ([variant, glasses]) => {
   }
 }, { immediate: true })
 
-watch(steps, (configuredSteps) => {
-  if (!configuredSteps.some((step) => step.id === activeStep.value)) {
-    activeStep.value = configuredSteps.at(-1)?.id ?? 1
+watch(steps, (configuredSteps, previousSteps) => {
+  if (configuredSteps.some((step) => step.id === activeStep.value)) {
+    return
   }
+
+  // A vanished step (for example glass after a variant without glass) must not push the visitor forward, so the
+  // closest previous step is restored instead.
+  const removedIndex = previousSteps.findIndex((step) => step.id === activeStep.value)
+  const fallbackIndex = Math.min(Math.max(removedIndex - 1, 0), configuredSteps.length - 1)
+
+  activeStep.value = configuredSteps[fallbackIndex]?.id ?? 1
 })
 
 const selectedPreviewImageUrl = computed((): string | null => {

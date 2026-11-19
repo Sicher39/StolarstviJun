@@ -28,11 +28,13 @@ export const swatchStyle = (url: string | null, type: 'decor' | 'glass'): CSSPro
   }
 
   if (type === 'glass') {
+    // Glass previews are square compositions (pane plus planter). They are contained in a
+    // square frame so nothing gets scaled beyond the frame or cropped at the edges.
     return {
       backgroundImage: `url("${url}"), linear-gradient(45deg, rgba(255,255,255,.045) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,.045) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(255,255,255,.045) 75%), linear-gradient(-45deg, transparent 75%, rgba(255,255,255,.045) 75%)`,
       backgroundPosition: 'center, 0 0, 0 9px, 9px -9px, -9px 0',
-      backgroundRepeat: 'repeat',
-      backgroundSize: '88px 88px, 18px 18px, 18px 18px, 18px 18px, 18px 18px',
+      backgroundRepeat: 'no-repeat, repeat, repeat, repeat, repeat',
+      backgroundSize: 'contain, 18px 18px, 18px 18px, 18px 18px, 18px 18px',
     }
   }
 

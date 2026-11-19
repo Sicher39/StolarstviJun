@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
@@ -34,6 +35,8 @@ class DoorModel extends Model implements HasMedia
         'category',
         'description',
         'base_price_without_vat',
+        'default_variant_id',
+        'default_decor_id',
         'active',
     ];
 
@@ -45,6 +48,22 @@ class DoorModel extends Model implements HasMedia
     public function decors(): BelongsToMany
     {
         return $this->belongsToMany(Decor::class)->withTimestamps();
+    }
+
+    /**
+     * Optional preselection used by the configurator when the model is chosen.
+     */
+    public function defaultVariant(): BelongsTo
+    {
+        return $this->belongsTo(DoorVariant::class, 'default_variant_id');
+    }
+
+    /**
+     * Optional preselection used by the configurator when the model is chosen.
+     */
+    public function defaultDecor(): BelongsTo
+    {
+        return $this->belongsTo(Decor::class, 'default_decor_id');
     }
 
     public function glasses(): BelongsToMany
@@ -82,6 +101,8 @@ class DoorModel extends Model implements HasMedia
         return [
             'base_price_without_vat' => 'decimal:2',
             'base_price_with_vat' => 'decimal:2',
+            'default_variant_id' => 'integer',
+            'default_decor_id' => 'integer',
             'active' => 'boolean',
         ];
     }

@@ -20,81 +20,99 @@ class ConfiguratorController extends Controller
             ->where('active', true)
             ->with([
                 'variants' => fn ($query) => $query->orderBy('id'),
-                'decors' => fn ($query) => $query->where('active', true)->orderBy('name'),
+                'decors' => fn ($query) => $query->where('active', true)->orderBy('id'),
                 'glasses' => fn ($query) => $query->where('active', true)->orderBy('name'),
                 'surcharges' => fn ($query) => $query->where('active', true)->orderBy('name'),
             ])
             ->orderBy('name')
             ->get()
-            ->map(fn (DoorModel $doorModel): array => [
-                'id' => $doorModel->id,
-                'name' => $doorModel->name,
-                'slug' => $doorModel->slug,
-                'category' => $doorModel->category,
-                'description' => $doorModel->description,
-                'base_price_without_vat' => (float) $doorModel->base_price_without_vat,
-                'base_price_with_vat' => round((float) $doorModel->base_price_without_vat * 1.21, 2),
-                'preview_image_url' => $this->mediaUrl($doorModel, 'preview_image'),
-                'variants' => $doorModel->variants
-                    ->map(fn (DoorVariant $variant): array => [
-                        'id' => $variant->id,
-                        'code' => $variant->code,
-                        'width' => $variant->width,
-                        'height' => $variant->height,
-                        'opening_direction' => $variant->opening_direction,
-                        'opening_type' => $variant->opening_type,
-                        'has_glass' => $variant->has_glass,
-                        'sliding_possible' => $variant->sliding_possible,
-                        'price_modifier' => (float) $variant->price_modifier,
-                        'canvas_width' => $variant->canvas_width,
-                        'canvas_height' => $variant->canvas_height,
-                        'frame_base_url' => $this->mediaUrl($variant, 'frame_base'),
-                        'frame_mask_url' => $this->mediaUrl($variant, 'frame_mask'),
-                        'door_mask_url' => $this->mediaUrl($variant, 'door_mask'),
-                        'door_vertical_decor_mask_url' => $this->mediaUrl($variant, 'door_vertical_decor_mask'),
-                        'door_horizontal_decor_mask_url' => $this->mediaUrl($variant, 'door_horizontal_decor_mask'),
-                        'frame_vertical_decor_mask_url' => $this->mediaUrl($variant, 'frame_vertical_decor_mask'),
-                        'frame_horizontal_decor_mask_url' => $this->mediaUrl($variant, 'frame_horizontal_decor_mask'),
-                        'depth_overlay_url' => $this->mediaUrl($variant, 'depth_overlay'),
-                        'construction_overlay_url' => $this->mediaUrl($variant, 'construction_overlay'),
-                        'handle_overlay_url' => $this->mediaUrl($variant, 'handle_overlay'),
-                        'source_reference_url' => $this->mediaUrl($variant, 'source_reference'),
-                    ])
-                    ->values()
-                    ->all(),
-                'decors' => $doorModel->decors
-                    ->map(fn (Decor $decor): array => [
-                        'id' => $decor->id,
-                        'name' => $decor->name,
-                        'code' => $decor->code,
-                        'price_modifier' => (float) $decor->price_modifier,
-                        'texture_image_url' => $this->mediaUrl($decor, 'texture_image'),
-                        'preview_image_url' => $this->mediaUrl($decor, 'preview_image'),
-                    ])
-                    ->values()
-                    ->all(),
-                'glasses' => $doorModel->glasses
-                    ->map(fn (GlassType $glass): array => [
-                        'id' => $glass->id,
-                        'name' => $glass->name,
-                        'code' => $glass->code,
-                        'opacity' => $glass->opacity,
-                        'price_modifier' => (float) $glass->price_modifier,
-                        'texture_image_url' => $this->mediaUrl($glass, 'texture_image'),
-                        'preview_image_url' => $this->mediaUrl($glass, 'preview_image'),
-                    ])
-                    ->values()
-                    ->all(),
-                'surcharges' => $doorModel->surcharges
-                    ->map(fn (Surcharge $surcharge): array => [
-                        'id' => $surcharge->id,
-                        'name' => $surcharge->name,
-                        'code' => $surcharge->code,
-                        'price_without_vat' => (float) $surcharge->price_without_vat,
-                    ])
-                    ->values()
-                    ->all(),
-            ])
+            ->map(function (DoorModel $doorModel): array {
+                // The published defaults are only honoured when they are still valid: the variant must belong to the
+                // model and the decor must be active and attached. Otherwise the first available option is used.
+                $initialVariant = $doorModel->default_variant_id === null
+                    ? null
+                    : $doorModel->variants->firstWhere('id', $doorModel->default_variant_id);
+
+                $initialVariant ??= $doorModel->variants->first();
+
+                $initialDecor = $doorModel->default_decor_id === null
+                    ? null
+                    : $doorModel->decors->firstWhere('id', $doorModel->default_decor_id);
+
+                $initialDecor ??= $doorModel->decors->first();
+
+                return [
+                    'id' => $doorModel->id,
+                    'name' => $doorModel->name,
+                    'slug' => $doorModel->slug,
+                    'category' => $doorModel->category,
+                    'description' => $doorModel->description,
+                    'base_price_without_vat' => (float) $doorModel->base_price_without_vat,
+                    'base_price_with_vat' => round((float) $doorModel->base_price_without_vat * 1.21, 2),
+                    'preview_image_url' => $this->mediaUrl($doorModel, 'preview_image'),
+                    'initial_variant_id' => $initialVariant?->id,
+                    'initial_decor_id' => $initialDecor?->id,
+                    'variants' => $doorModel->variants
+                        ->map(fn (DoorVariant $variant): array => [
+                            'id' => $variant->id,
+                            'code' => $variant->code,
+                            'width' => $variant->width,
+                            'height' => $variant->height,
+                            'opening_direction' => $variant->opening_direction,
+                            'opening_type' => $variant->opening_type,
+                            'has_glass' => $variant->has_glass,
+                            'sliding_possible' => $variant->sliding_possible,
+                            'price_modifier' => (float) $variant->price_modifier,
+                            'canvas_width' => $variant->canvas_width,
+                            'canvas_height' => $variant->canvas_height,
+                            'frame_base_url' => $this->mediaUrl($variant, 'frame_base'),
+                            'frame_mask_url' => $this->mediaUrl($variant, 'frame_mask'),
+                            'door_mask_url' => $this->mediaUrl($variant, 'door_mask'),
+                            'door_vertical_decor_mask_url' => $this->mediaUrl($variant, 'door_vertical_decor_mask'),
+                            'door_horizontal_decor_mask_url' => $this->mediaUrl($variant, 'door_horizontal_decor_mask'),
+                            'frame_vertical_decor_mask_url' => $this->mediaUrl($variant, 'frame_vertical_decor_mask'),
+                            'frame_horizontal_decor_mask_url' => $this->mediaUrl($variant, 'frame_horizontal_decor_mask'),
+                            'depth_overlay_url' => $this->mediaUrl($variant, 'depth_overlay'),
+                            'construction_overlay_url' => $this->mediaUrl($variant, 'construction_overlay'),
+                            'handle_overlay_url' => $this->mediaUrl($variant, 'handle_overlay'),
+                            'source_reference_url' => $this->mediaUrl($variant, 'source_reference'),
+                        ])
+                        ->values()
+                        ->all(),
+                    'decors' => $doorModel->decors
+                        ->map(fn (Decor $decor): array => [
+                            'id' => $decor->id,
+                            'name' => $decor->name,
+                            'code' => $decor->code,
+                            'price_modifier' => (float) $decor->price_modifier,
+                            'texture_image_url' => $this->mediaUrl($decor, 'texture_image'),
+                            'preview_image_url' => $this->mediaUrl($decor, 'preview_image'),
+                        ])
+                        ->values()
+                        ->all(),
+                    'glasses' => $doorModel->glasses
+                        ->map(fn (GlassType $glass): array => [
+                            'id' => $glass->id,
+                            'name' => $glass->name,
+                            'code' => $glass->code,
+                            'opacity' => $glass->opacity,
+                            'price_modifier' => (float) $glass->price_modifier,
+                            'texture_image_url' => $this->mediaUrl($glass, 'texture_image'),
+                            'preview_image_url' => $this->mediaUrl($glass, 'preview_image'),
+                        ])
+                        ->values()
+                        ->all(),
+                    'surcharges' => $doorModel->surcharges
+                        ->map(fn (Surcharge $surcharge): array => [
+                            'id' => $surcharge->id,
+                            'name' => $surcharge->name,
+                            'code' => $surcharge->code,
+                            'price_without_vat' => (float) $surcharge->price_without_vat,
+                        ])
+                        ->values()
+                        ->all(),
+                ];
+            })
             ->values()
             ->all();
 

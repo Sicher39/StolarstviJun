@@ -14,7 +14,11 @@ class EditGlassType extends EditRecord
 
     protected ?string $textureImageUploadPath = null;
 
+    protected bool $textureImageShouldBeCleared = false;
+
     protected ?string $previewImageUploadPath = null;
+
+    protected bool $previewImageShouldBeCleared = false;
 
     protected function getHeaderActions(): array
     {
@@ -44,6 +48,9 @@ class EditGlassType extends EditRecord
         $this->textureImageUploadPath = $this->stagedUploadPath($data['texture_image_upload'] ?? null);
         $this->previewImageUploadPath = $this->stagedUploadPath($data['preview_image_upload'] ?? null);
 
+        $this->textureImageShouldBeCleared = $this->isClearedUpload($data, 'texture_image_upload', 'texture_image');
+        $this->previewImageShouldBeCleared = $this->isClearedUpload($data, 'preview_image_upload', 'preview_image');
+
         unset($data['texture_image_upload'], $data['preview_image_upload']);
 
         return $data;
@@ -66,6 +73,8 @@ class EditGlassType extends EditRecord
                 ->addMediaFromDisk($texturePath, 'public')
                 ->preservingOriginal()
                 ->toMediaCollection('texture_image');
+        } elseif ($this->textureImageShouldBeCleared) {
+            $glassType->clearMediaCollection('texture_image');
         }
 
         if ($previewPath !== null) {
@@ -74,9 +83,32 @@ class EditGlassType extends EditRecord
                 ->addMediaFromDisk($previewPath, 'public')
                 ->preservingOriginal()
                 ->toMediaCollection('preview_image');
+        } elseif ($this->previewImageShouldBeCleared) {
+            $glassType->clearMediaCollection('preview_image');
         }
 
         $this->deleteStagedUpload($texturePath, $previewPath);
+    }
+
+    /**
+     * The form field is filled with the path of the stored media file, so an untouched
+     * field is submitted with that path. A submitted blank value therefore means the
+     * user explicitly removed the file. A missing key means the field was not part of
+     * the submitted state and the media collection must be left untouched.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function isClearedUpload(array $data, string $key, string $collection): bool
+    {
+        if (! array_key_exists($key, $data)) {
+            return false;
+        }
+
+        if ($this->normalizeUploadPath($data[$key]) !== null) {
+            return false;
+        }
+
+        return $this->getRecord()->getFirstMedia($collection) !== null;
     }
 
     private function mediaState(string $collection): ?string
