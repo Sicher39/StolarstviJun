@@ -12,6 +12,13 @@ return [
     | the message. All additional mailers can be configured within the
     | "mailers" array. Examples of each type of mailer are provided.
     |
+    | The outgoing mailbox is maintained in the admin panel (Nastavení ->
+    | E-mailová schránka) and stored in the database. When it is switched on
+    | and complete, App\Services\Mail\MailSettingsMailer writes it into
+    | "mail.mailers.mailbox" at runtime and makes it the default, so the
+    | SMTP credentials do not have to be part of .env. The value below is the
+    | fallback of a fresh installation and of local development.
+    |
     */
 
     'default' => env('MAIL_MAILER', 'log'),

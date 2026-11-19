@@ -11,6 +11,7 @@ import ConfiguratorSummaryCard from '@/front/components/Configurator/Configurato
 import ConfiguratorSurchargeStep from '@/front/components/Configurator/ConfiguratorSurchargeStep.vue'
 import ConfiguratorVariantStep from '@/front/components/Configurator/ConfiguratorVariantStep.vue'
 import DoorPreview from '@/front/components/Configurator/DoorPreview.vue'
+import { composeDoorPreviewPng } from '@/front/components/Configurator/doorPreviewImage'
 import type { DecorOption, DoorModel, DoorVariant, GlassOption, PreviewScene, PreviewSceneMaterial, SurchargeOption } from '@/front/components/Configurator/types'
 import { formatPrice, priceWithVat as calculatePriceWithVat, variantLabel } from '@/front/components/Configurator/utils'
 import FullSection from '@/front/components/Sections/FullSection.vue'
@@ -26,6 +27,10 @@ interface ConfiguratorStep {
   id: number
   label: string
 }
+
+// Shown when the browser cannot compose the illustration of the chosen door. The inquiry is deliberately
+// not sent in that case, so the visitor never receives a quote whose stored preview is missing by accident.
+const PREVIEW_ERROR_MESSAGE = 'Náhled vybraných dveří se nepodařilo složit, proto se poptávka neodeslala. Zkuste to prosím znovu, případně použijte jiný prohlížeč.'
 
 const props = defineProps<{
   doorModels: DoorModel[]
@@ -79,6 +84,9 @@ const selectedWallId = ref<number | null>(props.previewScene?.materials.find((ma
 const selectedFloorId = ref<number | null>(props.previewScene?.materials.find((material) => material.type === 'floor')?.id ?? null)
 const selectedSurchargeIds = ref<number[]>([])
 const activeStep = ref(1)
+// The preview is composed asynchronously right before submitting, so the button is blocked until it exists.
+const isPreparingPreview = ref(false)
+const previewError = ref('')
 
 const inquiryForm = useForm({
   door_model_id: null as number | null,
@@ -90,6 +98,12 @@ const inquiryForm = useForm({
   customer_email: '',
   customer_phone: '',
   customer_message: '',
+  // The acknowledgement of the privacy policy is required by the server and is stored as evidence of
+  // the consent; it is deliberately not a marketing opt-in.
+  gdpr_consent: false,
+  // Filled right before submitting with the PNG of the chosen door; the server accepts it as an
+  // illustration only and validates the selection and the price on its own.
+  door_preview: null as File | null,
 })
 
 const hasDoorModels = computed((): boolean => props.doorModels.length > 0)
@@ -283,9 +297,29 @@ const toggleSurcharge = (surchargeId: number): void => {
     : [...selectedSurchargeIds.value, surchargeId]
 }
 
-const submitInquiry = (): void => {
-  if (!canSubmitInquiry.value) {
+const submitInquiry = async (): Promise<void> => {
+  if (!canSubmitInquiry.value || isPreparingPreview.value) {
     return
+  }
+
+  previewError.value = ''
+  isPreparingPreview.value = true
+
+  try {
+    // The illustration is composed right before the request, so it always matches the current selection.
+    inquiryForm.door_preview = await composeDoorPreviewPng({
+      variant: selectedVariant.value,
+      decorTextureUrl: selectedDecorImageUrl.value,
+      glassTextureUrl: glassLayerImageUrl.value,
+      glassOpacity: selectedGlassOpacity.value,
+    })
+  } catch {
+    inquiryForm.door_preview = null
+    previewError.value = PREVIEW_ERROR_MESSAGE
+
+    return
+  } finally {
+    isPreparingPreview.value = false
   }
 
   inquiryForm.transform((data) => ({
@@ -298,8 +332,12 @@ const submitInquiry = (): void => {
   })).post(route('front.configurator.inquiry.store'), {
     preserveScroll: true,
     onSuccess: () => {
-      inquiryForm.reset('customer_name', 'customer_email', 'customer_phone', 'customer_message')
+      inquiryForm.reset('customer_name', 'customer_email', 'customer_phone', 'customer_message', 'gdpr_consent')
       inquiryForm.clearErrors()
+    },
+    onFinish: () => {
+      // A sent file must never be attached to the next inquiry in the same session.
+      inquiryForm.door_preview = null
     },
   })
 }
@@ -352,8 +390,8 @@ const selectedPreviewImageUrl = computed((): string | null => {
     </FullSection>
 
     <FullSection v-if="hasDoorModels">
-      <div class="mt-8 grid gap-6 xl:grid-cols-12 xl:items-start">
-        <section class="border border-white/15 bg-white/5 p-5 lg:p-6 xl:col-span-5">
+      <div class="mt-8 grid gap-6 lg:grid-cols-12 lg:items-start">
+        <section class="border border-white/15 bg-white/5 p-5 lg:col-span-5 lg:sticky lg:top-28 lg:p-6">
           <div class="flex items-start justify-between gap-4">
             <div>
               <p class="text-accent text-xs uppercase tracking-[0.25em]">Náhled</p>
@@ -379,7 +417,7 @@ const selectedPreviewImageUrl = computed((): string | null => {
 
         </section>
 
-        <section class="border border-white/15 bg-white/5 xl:col-span-7">
+        <section class="border border-white/15 bg-white/5 lg:col-span-7">
           <div class="border-b border-white/10 px-5 py-4 lg:px-6">
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
               <button
@@ -472,6 +510,8 @@ const selectedPreviewImageUrl = computed((): string | null => {
                 :form="inquiryForm"
                 :flash-success="flashSuccess"
                 :can-submit-inquiry="canSubmitInquiry"
+                :is-preparing-preview="isPreparingPreview"
+                :preview-error="previewError"
                 @submit="submitInquiry"
               />
             </div>

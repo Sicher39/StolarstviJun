@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Contact;
+use App\Services\Seo\SeoPageResolver;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -40,9 +42,12 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => fn (): ?string => $request->session()->get('success'),
             ],
-            'openingHours' => fn (): array => [],
-            'socialIcon' => fn (): array => [],
-            'footerContacts' => fn (): array => [],
+            // Resolved for every Inertia response, because the Blade root view renders the very same
+            // array into the first response: one payload feeds the server side and the client side head.
+            'seo' => fn (): array => app(SeoPageResolver::class)->payloadFor($request),
+            // The footer renders on every page, so the contact record is shared once here instead of being
+            // passed by every controller. The lookup is read only: see Contact::sharedAttributes().
+            'contact' => fn (): array => Contact::sharedAttributes(),
         ];
     }
 }

@@ -8,7 +8,10 @@ use App\Models\DoorVariant;
 use App\Models\GlassType;
 use App\Models\Inquiry;
 use App\Models\Surcharge;
+use App\Services\Inquiry\InquiryStatus;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ConfiguratorInquiryTest extends TestCase
@@ -29,6 +32,8 @@ class ConfiguratorInquiryTest extends TestCase
             'customer_email' => 'jan@example.com',
             'customer_phone' => '+420 123 456 789',
             'customer_message' => 'Prosím o ověření konfigurace.',
+            // The acknowledgement of the privacy policy is required by the endpoint.
+            'gdpr_consent' => '1',
         ]);
 
         $response
@@ -70,6 +75,7 @@ class ConfiguratorInquiryTest extends TestCase
             'surcharge_ids' => [$surcharge->id],
             'customer_name' => 'Jan Novak',
             'customer_email' => 'jan@example.com',
+            'gdpr_consent' => '1',
         ])->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas(Inquiry::class, [
@@ -111,6 +117,7 @@ class ConfiguratorInquiryTest extends TestCase
             'customer_name' => 'Jan Novak',
             'customer_email' => 'jan@example.com',
             'surcharge_ids' => [],
+            'gdpr_consent' => '1',
         ]);
 
         $response
@@ -139,11 +146,149 @@ class ConfiguratorInquiryTest extends TestCase
             'customer_name' => 'Jan Novak',
             'customer_email' => 'jan@example.com',
             'surcharge_ids' => [],
+            'gdpr_consent' => '1',
         ]);
 
         $response
             ->assertRedirect(route('front.configurator'))
             ->assertSessionHasErrors('glass_type_id');
+    }
+
+    public function test_configurator_inquiry_stores_the_generated_preview_png(): void
+    {
+        Storage::fake('local');
+
+        [$doorModel, $variant, $decor, $glassType, $surcharge] = $this->createCompatibleCatalogSelection();
+
+        $response = $this->post(route('front.configurator.inquiry.store'), [
+            'door_model_id' => $doorModel->id,
+            'door_variant_id' => $variant->id,
+            'decor_id' => $decor->id,
+            'glass_type_id' => $glassType->id,
+            'surcharge_ids' => [$surcharge->id],
+            'customer_name' => 'Jan Novak',
+            'customer_email' => 'jan@example.com',
+            'gdpr_consent' => '1',
+            'door_preview' => UploadedFile::fake()->createWithContent('nahlad-konfigurace.png', $this->pngBytes(300, 600)),
+            // A visitor can not push a media path, a URL or a price into the stored configuration.
+            'door_preview_url' => 'https://example.invalid/foreign.png',
+            'price_with_vat' => 1,
+            'configuration' => ['totals' => ['price_with_vat' => 1]],
+        ]);
+
+        $response
+            ->assertRedirect(route('front.configurator'))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success');
+
+        $inquiry = Inquiry::query()->where('customer_email', 'jan@example.com')->firstOrFail();
+        $media = $inquiry->getFirstMedia(Inquiry::PREVIEW_COLLECTION);
+
+        $this->assertNotNull($media, 'Vygenerovaný náhled se k poptávce neuložil.');
+        $this->assertSame('image/png', $media->mime_type);
+        $this->assertSame('nahlad-poptavky-'.$inquiry->getKey().'.png', $media->file_name);
+        $this->assertSame(Inquiry::PREVIEW_DISK, $media->disk);
+        Storage::disk(Inquiry::PREVIEW_DISK)->assertExists($media->getPathRelativeToRoot());
+
+        // The price and the snapshot stay authoritative: the upload can not change either of them.
+        $this->assertEquals(1875.5, (float) $inquiry->price_with_vat);
+        $this->assertEquals(1875.5, (float) $inquiry->configuration['totals']['price_with_vat']);
+        $this->assertArrayNotHasKey('door_preview', $inquiry->configuration);
+        $this->assertArrayNotHasKey('door_preview_url', $inquiry->configuration);
+        $this->assertStringNotContainsString('example.invalid', (string) json_encode($inquiry->configuration));
+    }
+
+    public function test_configurator_inquiry_rejects_an_svg_preview(): void
+    {
+        Storage::fake('local');
+
+        [$doorModel, $variant] = $this->createCompatibleCatalogSelection();
+
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="600"><rect width="300" height="600" /></svg>';
+
+        $response = $this->from(route('front.configurator'))->post(route('front.configurator.inquiry.store'), [
+            'door_model_id' => $doorModel->id,
+            'door_variant_id' => $variant->id,
+            'customer_name' => 'Jan Novak',
+            'customer_email' => 'jan@example.com',
+            'surcharge_ids' => [],
+            'gdpr_consent' => '1',
+            'door_preview' => UploadedFile::fake()
+                ->createWithContent('nahlad-konfigurace.svg', $svg)
+                ->mimeType('image/svg+xml'),
+        ]);
+
+        $response
+            ->assertRedirect(route('front.configurator'))
+            ->assertSessionHasErrors('door_preview');
+
+        // A refused upload must not leave a half stored inquiry behind.
+        $this->assertDatabaseMissing(Inquiry::class, ['customer_email' => 'jan@example.com']);
+    }
+
+    public function test_configurator_inquiry_rejects_a_preview_with_implausible_dimensions(): void
+    {
+        Storage::fake('local');
+
+        [$doorModel, $variant] = $this->createCompatibleCatalogSelection();
+
+        $response = $this->from(route('front.configurator'))->post(route('front.configurator.inquiry.store'), [
+            'door_model_id' => $doorModel->id,
+            'door_variant_id' => $variant->id,
+            'customer_name' => 'Jan Novak',
+            'customer_email' => 'jan@example.com',
+            'surcharge_ids' => [],
+            'gdpr_consent' => '1',
+            // A valid PNG, but far too small to be a composed door.
+            'door_preview' => UploadedFile::fake()->createWithContent('nahlad-konfigurace.png', $this->pngBytes(16, 16)),
+        ]);
+
+        $response
+            ->assertRedirect(route('front.configurator'))
+            ->assertSessionHasErrors('door_preview');
+
+        $this->assertDatabaseMissing(Inquiry::class, ['customer_email' => 'jan@example.com']);
+    }
+
+    public function test_configurator_inquiry_can_be_stored_without_a_generated_preview(): void
+    {
+        Storage::fake('local');
+
+        [$doorModel, $variant] = $this->createCompatibleCatalogSelection();
+
+        $this->post(route('front.configurator.inquiry.store'), [
+            'door_model_id' => $doorModel->id,
+            'door_variant_id' => $variant->id,
+            'customer_name' => 'Jan Novak',
+            'customer_email' => 'jan@example.com',
+            'surcharge_ids' => [],
+            'gdpr_consent' => '1',
+        ])->assertSessionHasNoErrors();
+
+        $inquiry = Inquiry::query()->where('customer_email', 'jan@example.com')->firstOrFail();
+
+        // An inquiry sent without an illustration still exists; the administration falls back to the catalog.
+        $this->assertFalse($inquiry->hasMedia(Inquiry::PREVIEW_COLLECTION));
+        $this->assertSame(InquiryStatus::New->value, $inquiry->status);
+    }
+
+    /**
+     * A minimal valid PNG assembled with zlib only, so the test does not depend on the GD extension.
+     */
+    private function pngBytes(int $width, int $height): string
+    {
+        $raw = '';
+
+        for ($row = 0; $row < $height; $row++) {
+            $raw .= "\x00".str_repeat("\x00", $width * 3);
+        }
+
+        $chunk = fn (string $type, string $data): string => pack('N', strlen($data)).$type.$data.pack('N', crc32($type.$data));
+
+        return "\x89PNG\r\n\x1a\n"
+            .$chunk('IHDR', pack('NNCCCCC', $width, $height, 8, 2, 0, 0, 0))
+            .$chunk('IDAT', gzcompress($raw))
+            .$chunk('IEND', '');
     }
 
     /**

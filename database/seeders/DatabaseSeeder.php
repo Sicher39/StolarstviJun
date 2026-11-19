@@ -19,6 +19,8 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             ContactSeeder::class,
+            LegalDocumentSeeder::class,
+            SeoPagesSeeder::class,
             DoorConfiguratorSeeder::class,
             PreviewSceneSeeder::class,
         ]);

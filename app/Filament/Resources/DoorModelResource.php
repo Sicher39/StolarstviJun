@@ -179,11 +179,13 @@ class DoorModelResource extends Resource
                 TextColumn::make('base_price_without_vat')
                     ->label('Cena bez DPH')
                     ->money('CZK', divideBy: 1)
+                    ->alignEnd()
                     ->sortable(),
                 TextColumn::make('base_price_with_vat')
                     ->label(fn (): string => 'Cena s DPH ('.self::vatRateLabel().')')
                     ->state(fn (DoorModel $record): float => VatCalculator::applyRate((float) $record->base_price_without_vat))
                     ->money('CZK', divideBy: 1)
+                    ->alignEnd()
                     ->sortable(),
                 IconColumn::make('active')
                     ->label('Aktivní')

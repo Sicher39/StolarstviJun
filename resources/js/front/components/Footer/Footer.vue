@@ -1,12 +1,30 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import FlexSection from '@/front/components/Sections/FlexSection.vue'
-import DayItem from '@/front/components/OpeningHours/DayItem.vue'
-import { usePage } from '@inertiajs/vue3'
+import { computed, onMounted } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3'
 import FooterMenuItem from '@/front/components/Footer/FooterMenuItem.vue'
-import SocialIcon from '@/front/components/SocialIcons/SocialIcon.vue'
-import FooterPersonalContact from '@/front/components/Contacts/FooterPersonalContact.vue'
-import { navLinks } from '@/front/components/Navigation/NavLinks'
+import { navLinks, type NavLink } from '@/front/components/Navigation/NavLinks'
+import { useCookieConsent } from '@/front/composables/useCookieConsent'
+
+/**
+ * The footer of the public site.
+ *
+ * The layout mirrors the reference design: one row of five columns (logo with the claim, the site
+ * menu, the legal links, the contact details and the company registration) and a separated copyright
+ * line below. Every fact comes from the contact record the server shares with all pages, so the
+ * footer never repeats a copied address, phone number or registration datum.
+ */
+
+interface FooterContact {
+  company_name: string
+  street: string
+  city: string
+  email: string
+  phone: string
+  registration_number: string
+  vat_number: string
+  data_box: string
+  registry_note: string
+}
 
 interface Props {
   build?: number
@@ -15,132 +33,196 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   build: 2003,
-  company: 'Jun a synové s.r.o.'
+  company: ''
 })
-
-const { build, company } = props
-const year = computed(() => new Date().getFullYear())
 
 const page = usePage()
-const openingHours = computed(() => {
-  return page.props.openingHours as any[]
+
+const contact = computed<FooterContact | null>(
+  () => (page.props.contact as FooterContact | undefined) ?? null
+)
+
+const companyName = computed<string>(
+  () => props.company || contact.value?.company_name || 'Stolařství Jun a synové s.r.o.'
+)
+
+const year = computed<number>(() => new Date().getFullYear())
+
+const copyrightYears = computed<string>(() =>
+  props.build === year.value ? `${year.value}` : `${props.build}–${year.value}`
+)
+
+const addressLines = computed<string[]>(() => {
+  const current = contact.value
+
+  if (!current) {
+    return []
+  }
+
+  return [current.street, current.city].filter((line) => line !== '')
 })
 
-const socialIcon = computed(() => {
-  return page.props.socialIcon as any[]
+const phoneHref = computed<string>(() => (contact.value?.phone ?? '').replace(/\s+/g, ''))
+
+// Only the facts the contact record really holds are published: an empty value in the administration
+// removes the line instead of rendering an empty label.
+const registrationLines = computed<string[]>(() => {
+  const current = contact.value
+
+  if (!current) {
+    return []
+  }
+
+  const lines: Array<[string, string]> = [
+    ['IČ', current.registration_number],
+    ['DIČ', current.vat_number],
+    ['Datová schránka', current.data_box]
+  ]
+
+  return lines
+    .filter(([, value]) => value !== '')
+    .map(([label, value]) => `${label}: ${value}`)
 })
 
-const footerContacts = computed(() => {
-  return page.props.footerContacts as any[]
+// The header navigation stays compact, so the configurator is added to the footer menu only. All other
+// items come from the shared navigation definition, so the footer never drifts from the header.
+// The configurator is placed right after the contact item, i.e. as the last footer menu entry.
+const footerMenuLinks = computed<NavLink[]>(() => {
+  const links: NavLink[] = [...navLinks]
+  const configuratorLink: NavLink = {
+    title: 'Konfigurátor',
+    link: '/konfigurator',
+    route: 'front.configurator'
+  }
+  const contactIndex = links.findIndex((link) => link.route === 'front.contact')
+
+  links.splice(contactIndex === -1 ? links.length : contactIndex + 1, 0, configuratorLink)
+
+  return links
 })
+
+const legalLinks: NavLink[] = [
+  {
+    title: 'Zásady ochrany osobních údajů',
+    link: '/ochrana-osobnich-udaju',
+    route: 'front.gdpr'
+  },
+  {
+    title: 'Zásady používání cookies',
+    link: '/zasady-cookies',
+    route: 'front.cookies'
+  }
+]
+
+const { config, requiresCookieConsent, loadConfig, openPreferences } = useCookieConsent()
+
+const cookieSettingsLabel = computed<string>(
+  () => config.value?.settings.footerLinkLabel ?? 'Nastavení cookies'
+)
+
+onMounted(() => {
+  // Whether the settings link belongs in the footer depends on the configuration, so the footer loads it
+  // on mount as well; the composable shares a single request with the cookie dialog.
+  void loadConfig()
+})
+
+// The dialog owns the state of the visitor's choice, so the footer only asks it to open.
+const openCookieSettings = (): void => {
+  void openPreferences()
+}
 </script>
 
 <template>
-  <div class="block border-t border-accent w-full">
-    <div class="block w-full pb-10 pt-10">
-      <FlexSection>
-        <!-- Textový obsah nad obrázkem -->
-        <div class="relative w-full z-10">
-          <div
-            class="grid grid-cols-1 smW:grid-cols-2 lg:grid-cols-3 gap-10 lg:gap-20 pb-10 md:pb-0"
-          >
-            <!--            main footer-->
-            <div class="block order-3 lg:order-1">
-              <div v-if="Array.isArray(footerContacts) && footerContacts.length" class="block">
-                <p class="text-primary font-thin text-xl leading-tight">
-                  Rychlý kontakt:
-                </p>
-                <div class="border-b border-primary w-20"></div>
-                <FooterPersonalContact
-                  v-for="(person, index) in footerContacts"
-                  :key="index"
-                  v-bind="person"
-                />
-              </div>
+  <footer class="w-full border-t border-accent/40 bg-dark">
+    <div class="mx-auto w-full max-w-480 px-5 pb-8 pt-14 lg:px-10 lg:pb-10 lg:pt-20">
+      <div class="grid grid-cols-1 gap-10 smW:grid-cols-2 lg:grid-cols-3 lg:gap-8 xl:grid-cols-5">
+        <!-- Logo with the claim -->
+        <div class="smW:col-span-2 lg:col-span-3 xl:col-span-1">
+          <Link href="/" class="inline-flex w-fit">
+            <img
+              src="/img/logo/COL-stolarstvi-jun.svg"
+              class="h-auto w-[150px]"
+              alt="Stolařství Jun a synové"
+              width="150"
+              height="88"
+            >
+          </Link>
 
-              <div v-if="Array.isArray(socialIcon) && socialIcon.length" class="block mt-10">
-                <p class="text-primary font-thin text-xl leading-tight">
-                  Sociální sítě:
-                </p>
-                <div class="border-b border-primary w-20"></div>
-                <div
-                  class="flex flex-wrap w-full justify-start py-3 gap-3"
-                >
-                  <SocialIcon v-for="(icon, i) in socialIcon" :key="i" v-bind="icon" />
-                </div>
-              </div>
-
-              <div class="hidden lg:block mt-5">
-                <p
-                  class="font-main font-normal text-sm text-primary text-center lg:text-left"
-                >
-                  <span v-if="build === year">&copy; {{ year }} {{ company }}</span>
-                  <span v-else>&copy; {{ build }}–{{ year }} {{ company }}</span>
-                </p>
-                <p
-                  class="font-main font-normal text-primary text-center lg:text-left text-[16px] pb-5 mt-2"
-                >
-                  <a href="/ochrana-osobnich-udaju">
-                    <span
-                      class="text-primary hover:underline decoration-light underline-offset-2 text-[14px]"
-                    >
-                      <br />podmínky ochrany osobních údajů
-                    </span>
-                  </a>
-                </p>
-              </div>
-            </div>
-
-            <!-- menu items -->
-            <div class="block h-full order-3 lg:order-2">
-              <p class="text-primary font-thin text-xl leading-tight">Menu:</p>
-              <div class="border-b text-primary  w-20"></div>
-              <div class="grid grid-cols-1 w-full mt-5">
-                <FooterMenuItem
-                  v-for="(link, index) in navLinks"
-                  :key="index"
-                  :link="link.link"
-                  :title="link.title"
-                  :route-link="link.route"
-                />
-              </div>
-            </div>
-
-            <!-- Contact and opening hours -->
-            <div class="block h-full order-1 lg:order-3">
-              <div v-if="Array.isArray(openingHours) && openingHours.length" class="block w-full">
-                <p class="text-primary font-thin text-xl leading-tight">
-                  Provozní doba:
-                </p>
-                <div class="border-b text-primary w-20"></div>
-                <div class="block pt-5">
-                  <DayItem v-for="(item, i) in openingHours" :key="i" v-bind="item" footer />
-                </div>
-              </div>
-            </div>
-
-            <div class="block lg:hidden order-4">
-              <p
-                class="font-main font-normal text-sm lg:text-lg xl:text-xl text-primary text-left"
-              >
-                <span v-if="build === year">&copy; {{ year }} {{ company }}</span>
-                <span v-else>&copy; {{ build }}–{{ year }} {{ company }}</span>
-              </p>
-              <p
-                class="font-main font-normal text-primary text-left text-[16px] pb-5 mt-2"
-              >
-                <a href="/ochrana-osobnich-udaju">
-                  <span
-                    class="text-light hover:underline decoration-light underline-offset-2 text-[14px]"
-                  >
-                    <br />podmínky ochrany osobních údajů
-                  </span>
-                </a>
-              </p>
-            </div>
-          </div>
+          <p class="mt-6 max-w-sm text-sm leading-relaxed text-primary/80">
+            Každý kus dřeva má svůj příběh, my mu dáme tvar podle vašich představ.
+          </p>
         </div>
-      </FlexSection>
+
+        <!-- Site menu (intentionally without a heading) -->
+        <nav aria-label="Menu v zápatí">
+          <ul class="space-y-1">
+            <li v-for="link in footerMenuLinks" :key="link.route">
+              <FooterMenuItem :link="link.link" :title="link.title" :route-link="link.route" />
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Legal information -->
+        <nav aria-label="Právní informace">
+          <ul class="space-y-1">
+            <li v-for="link in legalLinks" :key="link.route">
+              <FooterMenuItem :link="link.link" :title="link.title" :route-link="link.route" />
+            </li>
+            <!-- A site with technical cookies only has nothing to configure, so the entry stays hidden. -->
+            <li v-if="requiresCookieConsent">
+              <button
+                type="button"
+                class="inline-flex items-center py-1 font-main text-sm font-thin text-primary underline-offset-4 transition hover:text-accent hover:underline hover:decoration-accent"
+                @click="openCookieSettings"
+              >
+                {{ cookieSettingsLabel }}
+              </button>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Contact details -->
+        <address class="not-italic">
+          <p v-for="line in addressLines" :key="line" class="text-sm text-primary/80">
+            {{ line }}
+          </p>
+
+          <p v-if="contact" class="mt-3 text-sm">
+            <a
+              :href="`mailto:${contact.email}`"
+              class="text-primary/80 underline-offset-4 transition hover:text-accent hover:underline hover:decoration-accent"
+            >
+              {{ contact.email }}
+            </a>
+          </p>
+
+          <p v-if="contact" class="mt-1 text-sm">
+            <a
+              :href="`tel:${phoneHref}`"
+              class="text-primary/80 underline-offset-4 transition hover:text-accent hover:underline hover:decoration-accent"
+            >
+              {{ contact.phone }}
+            </a>
+          </p>
+        </address>
+
+        <!-- Company registration -->
+        <div>
+          <p v-for="line in registrationLines" :key="line" class="text-sm text-primary/80">
+            {{ line }}
+          </p>
+
+          <p v-if="contact?.registry_note" class="mt-3 text-sm text-primary/60">
+            {{ contact.registry_note }}
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-12 border-t border-primary/15 pt-6">
+        <p class="text-sm text-primary/70">
+          © {{ copyrightYears }} {{ companyName }}
+        </p>
+      </div>
     </div>
-  </div>
+  </footer>
 </template>

@@ -8,16 +8,21 @@ use App\Models\DoorVariant;
 use App\Models\GlassType;
 use App\Models\Inquiry;
 use App\Models\Surcharge;
+use App\Services\Compliance\ConsentRecorder;
+use App\Services\Inquiry\DoorPreviewImageInspector;
+use App\Services\Inquiry\InquiryStatus;
 use App\Services\VatCalculator;
+use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ConfiguratorInquiryController extends Controller
 {
-    public function __invoke(Request $request): RedirectResponse
+    public function __invoke(Request $request, ConsentRecorder $consents, DoorPreviewImageInspector $previewInspector): RedirectResponse
     {
         $validated = $request->validate([
             'door_model_id' => ['required', 'exists:door_models,id'],
@@ -30,6 +35,40 @@ class ConfiguratorInquiryController extends Controller
             'customer_email' => ['required', 'email', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:255'],
             'customer_message' => ['nullable', 'string', 'max:5000'],
+            // The acknowledgement of the privacy policy is a real consent, not a marketing opt-in: the
+            // inquiry carries personal data, so it may only be sent after the visitor confirmed they
+            // read how the workshop processes it.
+            'gdpr_consent' => ['accepted'],
+            // The illustration of the chosen door that the browser composed right before submitting. It is
+            // optional (a legacy browser may not be able to compose it) and it is never part of the stored
+            // configuration: the price and the selection are always validated from the database below.
+            'door_preview' => [
+                'nullable',
+                'file',
+                'mimes:png',
+                'mimetypes:image/png',
+                'max:5120',
+                function (string $attribute, mixed $value, Closure $fail) use ($previewInspector): void {
+                    if (! $value instanceof UploadedFile) {
+                        $fail('Náhled konfigurace se nepodařilo přijmout, odešlete ho prosím znovu.');
+
+                        return;
+                    }
+
+                    $violation = $previewInspector->violation($value);
+
+                    if ($violation !== null) {
+                        $fail($violation);
+                    }
+                },
+            ],
+        ], [
+            'gdpr_consent.accepted' => 'Bez potvrzení seznámení se zásadami ochrany osobních údajů poptávku odeslat nelze.',
+            'door_preview.mimes' => 'Náhled konfigurace musí být obrázek ve formátu PNG.',
+            'door_preview.mimetypes' => 'Náhled konfigurace musí být obrázek ve formátu PNG.',
+            'door_preview.file' => 'Náhled konfigurace se nepodařilo nahrát, odešlete ho prosím znovu.',
+            'door_preview.uploaded' => 'Náhled konfigurace se nepodařilo nahrát, maximum je 5 MB.',
+            'door_preview.max' => 'Náhled konfigurace je příliš velký, maximum je 5 MB.',
         ]);
 
         $doorModel = DoorModel::query()
@@ -125,7 +164,9 @@ class ConfiguratorInquiryController extends Controller
             'submitted_from' => 'front.configurator',
         ];
 
-        DB::transaction(function () use ($validated, $doorModel, $doorVariant, $decor, $glassType, $priceWithoutVat, $priceWithVat, $configuration, $crmPayload, $surcharges): void {
+        $doorPreview = $validated['door_preview'] ?? null;
+
+        DB::transaction(function () use ($request, $consents, $validated, $doorModel, $doorVariant, $decor, $glassType, $priceWithoutVat, $priceWithVat, $configuration, $crmPayload, $surcharges, $doorPreview): void {
             $inquiry = Inquiry::query()->create([
                 'door_model_id' => $doorModel->id,
                 'door_variant_id' => $doorVariant->id,
@@ -139,7 +180,7 @@ class ConfiguratorInquiryController extends Controller
                 'price_with_vat' => $priceWithVat,
                 'configuration' => $configuration,
                 'crm_payload' => $crmPayload,
-                'status' => 'new',
+                'status' => InquiryStatus::New->value,
             ]);
 
             $inquiry->surcharges()->attach(
@@ -148,6 +189,35 @@ class ConfiguratorInquiryController extends Controller
                         'price_without_vat' => round((float) $surcharge->price_without_vat, 2),
                     ],
                 ])->all(),
+            );
+
+            // The preview is stored next to the inquiry in the same transaction, so a stored inquiry never
+            // loses the illustration it was sent with. It is stored as media instead of a column, because
+            // the media table is already polymorphic and the file is not part of the quoted configuration.
+            if ($doorPreview instanceof UploadedFile) {
+                $inquiry->addMedia($doorPreview)
+                    ->usingFileName('nahlad-poptavky-'.$inquiry->getKey().'.png')
+                    ->toMediaCollection(Inquiry::PREVIEW_COLLECTION);
+            }
+
+            // The proof of the acknowledgement belongs to the same transaction as the inquiry: either
+            // both exist or neither does, so a stored inquiry always carries its evidence.
+            $consents->recordGdprAcknowledgement(
+                ConsentRecorder::SOURCE_CONFIGURATOR_INQUIRY,
+                [
+                    'form' => 'konfigurátor dveří',
+                    'inquiry_id' => $inquiry->id,
+                    'door_model' => $doorModel->name,
+                    'door_variant' => $doorVariant->code,
+                    'decor' => $decor?->name,
+                    'glass_type' => $glassType?->name,
+                    'surcharges' => $surcharges->pluck('name')->all(),
+                    'price_with_vat' => $priceWithVat,
+                ],
+                $request,
+                $validated['customer_name'],
+                $validated['customer_email'],
+                $validated['customer_phone'] ?? null,
             );
         });
 

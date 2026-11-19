@@ -3,6 +3,14 @@ import { computed } from 'vue'
 
 import type { DoorVariant, PreviewScene, PreviewSceneMaterial } from './types'
 
+// The floor texture source is a single 2048 x 862 panorama. A pattern tile spanning the
+// whole scene width keeps the planks at their natural scale, whereas fitting the image to
+// the scene with `slice` magnified it several times over.
+const FLOOR_TEXTURE_ASPECT_RATIO = 862 / 2048
+// In the 1400 x 1100 scene the floor band starts around y = 940, so the panorama is
+// anchored there; the visible part is its top strip, cropped by the floor mask.
+const FLOOR_BAND_TOP_RATIO = 940 / 1100
+
 const props = defineProps<{
   modelName: string | null
   canRenderDecorLayer: boolean
@@ -39,6 +47,9 @@ const verticalDecorPatternId = computed((): string => `${props.doorMaskId}-verti
 const frameHeaderClipId = computed((): string => `${props.doorMaskId}-frame-header-clip`)
 const wallMaskId = computed((): string => `${props.doorMaskId}-wall-mask`)
 const floorMaskId = computed((): string => `${props.doorMaskId}-floor-mask`)
+const floorTexturePatternId = computed((): string => `${props.doorMaskId}-floor-pattern`)
+const floorTextureHeight = computed((): number => sceneWidth.value * FLOOR_TEXTURE_ASPECT_RATIO)
+const floorTextureOriginY = computed((): number => sceneHeight.value * FLOOR_BAND_TOP_RATIO)
 const doorwayMaskId = computed((): string => `${props.doorMaskId}-doorway-mask`)
 const doorLeafClipId = computed((): string => `${props.doorMaskId}-door-leaf-clip`)
 const roomBehindGlassUrl = computed((): string | null => {
@@ -74,10 +85,28 @@ const roomBehindGlassUrl = computed((): string | null => {
           <mask v-if="previewScene.floor_mask_url" :id="floorMaskId" x="0" y="0" :width="sceneWidth" :height="sceneHeight" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance">
             <image :href="previewScene.floor_mask_url" :width="sceneWidth" :height="sceneHeight" preserveAspectRatio="none" />
           </mask>
+          <!-- Single full-width floor tile: the panorama is only scaled down to the scene width
+               and anchored at the floor band top, so no plank magnification and no repetition. -->
+          <pattern
+            v-if="selectedFloor?.texture_image_url && previewScene.floor_mask_url"
+            :id="floorTexturePatternId"
+            patternUnits="userSpaceOnUse"
+            x="0"
+            :y="floorTextureOriginY"
+            :width="sceneWidth"
+            :height="floorTextureHeight"
+          >
+            <image
+              :href="selectedFloor.texture_image_url"
+              :width="sceneWidth"
+              :height="floorTextureHeight"
+              preserveAspectRatio="xMidYMin meet"
+            />
+          </pattern>
         </defs>
 
         <image v-if="selectedWall?.texture_image_url && previewScene.wall_mask_url" :href="selectedWall.texture_image_url" :width="sceneWidth" :height="sceneHeight" preserveAspectRatio="xMidYMid slice" :mask="`url(#${wallMaskId})`" />
-        <image v-if="selectedFloor?.texture_image_url && previewScene.floor_mask_url" :href="selectedFloor.texture_image_url" :width="sceneWidth" :height="sceneHeight" preserveAspectRatio="xMidYMid slice" :mask="`url(#${floorMaskId})`" />
+        <rect v-if="selectedFloor?.texture_image_url && previewScene.floor_mask_url" x="0" y="0" :width="sceneWidth" :height="sceneHeight" :fill="`url(#${floorTexturePatternId})`" :mask="`url(#${floorMaskId})`" />
         <image v-if="previewScene.scene_base_url" :href="previewScene.scene_base_url" :width="sceneWidth" :height="sceneHeight" preserveAspectRatio="none" />
 
         <svg

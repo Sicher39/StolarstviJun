@@ -99,6 +99,7 @@ class DecorResource extends Resource
                 TextColumn::make('price_modifier')
                     ->label('Příplatek bez DPH')
                     ->money('CZK', divideBy: 1)
+                    ->alignEnd()
                     ->sortable(),
                 IconColumn::make('active')
                     ->label('Aktivní')

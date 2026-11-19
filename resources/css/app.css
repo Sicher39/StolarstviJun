@@ -45,3 +45,61 @@
 }
 
 @utility bg-3xlIndex { background-image: url("/img/bg/01/red-door.png"); }
+
+/* ---- Legal documents ---- */
+/* The body of a legal document is HTML written in the administration panel, so it needs its own
+   block spacing and list markers. Typography comes from the base layer above, but the text colour
+   has to be set here: the base layer colours headings and paragraphs only, so list items and the
+   inline markup between them would keep the browser default black on the dark page background. */
+.legal-document {
+    color: var(--color-primary);
+}
+
+.legal-document > * + * {
+    margin-top: 1.5rem;
+}
+
+.legal-document h2 {
+    margin-top: 2.75rem;
+    font-size: 1.5rem;
+    line-height: 1.3;
+}
+
+.legal-document h3 {
+    margin-top: 2rem;
+    font-size: 1.25rem;
+    line-height: 1.35;
+}
+
+.legal-document ul {
+    padding-left: 1.5rem;
+    list-style: disc;
+}
+
+.legal-document li + li {
+    margin-top: 0.5rem;
+}
+
+.legal-document strong {
+    font-weight: 600;
+    color: inherit;
+}
+
+.legal-document blockquote {
+    padding-left: 1rem;
+    border-left: 2px solid rgb(251 189 131 / 0.4);
+}
+
+.legal-document a {
+    color: var(--color-accent);
+    text-decoration: underline;
+}
+
+/* Structurally inserted blocks (processing purposes, cookie services) are separated from each other
+   so a long list stays readable. The markup comes from resources/views/partials/compliance. */
+.legal-document .legal-purpose + .legal-purpose,
+.legal-document .legal-service + .legal-service {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid rgb(251 189 131 / 0.25);
+}

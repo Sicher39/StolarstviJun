@@ -1,38 +1,49 @@
 <script setup lang="ts">
-import BasicGdpr from '@/front/components/Gdpr/BasicGdpr.vue'
+import GdprDocument from '@/front/components/Gdpr/GdprDocument.vue'
 import MainLayout from '@/front/layouts/MainLayout.vue'
-import SeoHead, { type SeoProps } from '@/front/components/Seo/SeoHead.vue'
 
 defineOptions({
   layout: MainLayout
 })
 
-const seoGdpr: SeoProps = {
-  title: 'Podminky ochrany osobnich udaju (GDPR) | MIRA elektromontazni Brno',
-  description:
-    'Informace o tom, jak MIRA, elektromontazni spolecnost s r.o., zpracovava osobni udaje zakazniku a navstevniku webu v souladu s narizenim GDPR.',
-  keywords: ['GDPR MIRA', 'ochrana osobnich udaju', 'zasady zpracovani osobnich udaju'],
-  canonical: 'https://mirabrno.cz/gdpr',
-  ogSiteName: 'MIRA elektromontazni Brno'
-}
+// The text itself is a legal document edited in the administration (see the legal documents
+// module), so the page only renders what the server publishes.
+defineProps<{
+  document: {
+    title: string
+    perex: string | null
+    content: string
+    version: string
+    effective_from: string | null
+    updated_at: string | null
+  }
+  cookie_policy_url: string
+}>()
+
+// Title, description and robots directives of this page are managed by the server side SEO panel
+// (see config/seo.php), so no metadata is repeated here.
 </script>
 
 <template>
-  <SeoHead v-bind="seoGdpr" />
+  <div class="w-full">
+    <div class="flex w-full justify-center bg-dark">
+      <h1 class="py-44 text-center text-primary">
+        {{ document.title }}
+      </h1>
+    </div>
 
-  <div class="flex w-full justify-center bg-dark">
-    <h1 class="py-44 text-center text-light">
-      Podminky ochrany <br />
-      osobnich udaju
-    </h1>
+    <GdprDocument :document="document" />
+
+    <div class="flex w-full justify-center px-2 pb-16">
+      <div class="mx-auto block w-full lg:w-10/12 xl:w-8/12">
+        <p class="border-t border-accent/40 pt-8 text-base text-primary">
+          Jaké cookies web používá a jak je můžete povolit nebo odmítnout, popisují
+          <a
+            :href="cookie_policy_url"
+            class="text-accent underline underline-offset-4 transition hover:text-primary"
+          >zásady používání cookies</a>.
+        </p>
+      </div>
+    </div>
   </div>
-
-  <BasicGdpr
-    administrator="MIRA, elektromontazni spolecnost s r.o. | Lubomir Oskrda"
-    company-id="27745015"
-    address="Cejl 58/72, Brno 602 00"
-    email="mira@mirabrno.cz"
-    tel="+420 777 758 830"
-    date="1.9.2024"
-  />
 </template>

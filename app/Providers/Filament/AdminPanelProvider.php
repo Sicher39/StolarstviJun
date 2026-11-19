@@ -28,6 +28,16 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->databaseNotifications()
+            // Explicit order: the sidebar reads from the daily work to the rarely touched administration,
+            // and "Nastavení" stays the last group of the panel.
+            ->navigationGroups([
+                'Poptávky',
+                'Katalog dveří',
+                'Konfigurátor',
+                'Obsah',
+                'GDPR',
+                'Nastavení',
+            ])
             ->colors([
                 'primary' => Color::Amber,
             ])

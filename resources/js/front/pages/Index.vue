@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import MainLayout from '@/front/layouts/MainLayout.vue'
-import SeoHead, {SeoProps} from '@/front/components/Seo/SeoHead.vue'
 import FullSection from "@/front/components/Sections/FullSection.vue"
 import ButtonMain from "@/front/components/Buttons/ButtonMain.vue";
 import TextGridFour from "@/front/components/TextGrid/TextGridFour.vue";
@@ -44,32 +43,6 @@ onBeforeUnmount((): void => {
   revealGsapContext?.revert()
   revealGsapContext = null
 })
-
-const seoHome: SeoProps = {
-  title: '',
-  description:
-      '',
-  keywords: [
-    '',
-  ],
-  canonical: '',
-  ogImage: '',
-  ogSiteName: '',
-  structuredData: {
-    '@context': 'https://schema.org',
-    '@type': '',
-    name: '',
-    url: '',
-    address: {
-      '@type': 'PostalAddress',
-      streetAddress: '',
-      addressLocality: '',
-      postalCode: '',
-      addressCountry: 'CZ'
-    },
-    areaServed: ''
-  }
-}
 
 const facts = ref([
   {
@@ -115,8 +88,6 @@ const woodFactory = ref([
 </script>
 
 <template>
-  <SeoHead v-bind="seoHome"/>
-
   <HeaderSection
       img="red-door"
       button="konfigurátor dveří"

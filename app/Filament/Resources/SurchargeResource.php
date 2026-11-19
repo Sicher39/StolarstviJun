@@ -69,6 +69,7 @@ class SurchargeResource extends Resource
                 TextColumn::make('price_without_vat')
                     ->label('Cena bez DPH')
                     ->money('CZK', divideBy: 1)
+                    ->alignEnd()
                     ->sortable(),
                 IconColumn::make('active')
                     ->label('Aktivní')

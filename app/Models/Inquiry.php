@@ -2,14 +2,29 @@
 
 namespace App\Models;
 
+use App\Services\Inquiry\InquiryStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
-class Inquiry extends Model
+class Inquiry extends Model implements HasMedia
 {
-    use HasFactory;
+    use HasFactory, InteractsWithMedia;
+
+    /**
+     * The illustration of the configured door that the configurator composed in the browser at the moment
+     * the inquiry was sent. It contains the door only - no room, no wall, no floor and no customer data.
+     */
+    public const PREVIEW_COLLECTION = 'door_preview';
+
+    /**
+     * The preview is uploaded by an anonymous visitor, so it stays on the private disk and the
+     * administration reads it through a short lived signed URL.
+     */
+    public const PREVIEW_DISK = 'local';
 
     protected $fillable = [
         'door_model_id',
@@ -25,6 +40,16 @@ class Inquiry extends Model
         'configuration',
         'crm_payload',
         'status',
+    ];
+
+    /**
+     * An inquiry always starts as "new", even when it is not created by the configurator: the column
+     * default and this attribute come from the same InquiryStatus case.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => InquiryStatus::New->value,
     ];
 
     public function doorModel(): BelongsTo
@@ -54,6 +79,24 @@ class Inquiry extends Model
             ->withTimestamps();
     }
 
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection(self::PREVIEW_COLLECTION)
+            ->useDisk(self::PREVIEW_DISK)
+            // The browser always sends a PNG (the server validates the bytes), so a different type can
+            // only mean a tampered request and is refused by the media library as well.
+            ->acceptsMimeTypes(['image/png'])
+            ->singleFile();
+    }
+
+    /**
+     * True once `gdpr:anonymize-inquiries` replaced the personal data of the inquiry.
+     */
+    public function isAnonymized(): bool
+    {
+        return $this->anonymized_at !== null;
+    }
+
     protected function casts(): array
     {
         return [
@@ -61,6 +104,9 @@ class Inquiry extends Model
             'price_with_vat' => 'decimal:2',
             'configuration' => 'array',
             'crm_payload' => 'array',
+            // Set by App\Services\Privacy\InquiryAnonymizer; it is not fillable on purpose, so a
+            // request or a form can never clear it again.
+            'anonymized_at' => 'datetime',
         ];
     }
 }

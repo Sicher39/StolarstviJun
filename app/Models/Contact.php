@@ -69,4 +69,23 @@ class Contact extends Model
 
         return static::query()->create(static::defaultAttributes());
     }
+
+    /**
+     * The contact data published in the shared Inertia props, because the footer renders on every page.
+     *
+     * Unlike current() the lookup never writes: a plain page view must not create the baseline row, so the
+     * published baseline is returned when the table is still empty.
+     *
+     * @return array<string, string>
+     */
+    public static function sharedAttributes(): array
+    {
+        $contact = static::query()->oldest('id')->first();
+
+        if ($contact instanceof self) {
+            return $contact->only(array_keys(static::defaultAttributes()));
+        }
+
+        return static::defaultAttributes();
+    }
 }
