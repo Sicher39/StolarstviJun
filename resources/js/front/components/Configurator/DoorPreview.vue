@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import ConfiguratorDoorLayers from './ConfiguratorDoorLayers.vue'
 import type { DoorVariant, PreviewScene, PreviewSceneMaterial } from './types'
 
 // The floor texture source is a single 2048 x 862 panorama. A pattern tile spanning the
@@ -37,21 +38,12 @@ const doorX = computed((): number => props.previewScene?.door_x ?? 487)
 const doorY = computed((): number => props.previewScene?.door_y ?? 100)
 const doorWidth = computed((): number => props.previewScene?.door_width ?? 426)
 const doorHeight = computed((): number => props.previewScene?.door_height ?? 900)
-const frameMaskId = computed((): string => `${props.doorMaskId}-frame-mask`)
-const doorVerticalDecorMaskId = computed((): string => `${props.doorMaskId}-door-vertical-decor-mask`)
-const doorHorizontalDecorMaskId = computed((): string => `${props.doorMaskId}-door-horizontal-decor-mask`)
-const frameVerticalDecorMaskId = computed((): string => `${props.doorMaskId}-frame-vertical-decor-mask`)
-const frameHorizontalDecorMaskId = computed((): string => `${props.doorMaskId}-frame-horizontal-decor-mask`)
-const horizontalDecorPatternId = computed((): string => `${props.doorMaskId}-horizontal-decor-pattern`)
-const verticalDecorPatternId = computed((): string => `${props.doorMaskId}-vertical-decor-pattern`)
-const frameHeaderClipId = computed((): string => `${props.doorMaskId}-frame-header-clip`)
 const wallMaskId = computed((): string => `${props.doorMaskId}-wall-mask`)
 const floorMaskId = computed((): string => `${props.doorMaskId}-floor-mask`)
 const floorTexturePatternId = computed((): string => `${props.doorMaskId}-floor-pattern`)
 const floorTextureHeight = computed((): number => sceneWidth.value * FLOOR_TEXTURE_ASPECT_RATIO)
 const floorTextureOriginY = computed((): number => sceneHeight.value * FLOOR_BAND_TOP_RATIO)
 const doorwayMaskId = computed((): string => `${props.doorMaskId}-doorway-mask`)
-const doorLeafClipId = computed((): string => `${props.doorMaskId}-door-leaf-clip`)
 const roomBehindGlassUrl = computed((): string | null => {
   if (!props.previewScene) {
     return null
@@ -128,115 +120,19 @@ const roomBehindGlassUrl = computed((): string | null => {
 
         <image v-if="previewScene.doorway_depth_url" :href="previewScene.doorway_depth_url" :width="sceneWidth" :height="sceneHeight" preserveAspectRatio="none" />
 
-        <svg
+        <ConfiguratorDoorLayers
           v-if="canRenderDecorLayer && selectedDecorImageUrl && selectedVariant?.door_mask_url"
+          :variant="selectedVariant"
+          :decor-image-url="selectedDecorImageUrl"
+          :glass-image-url="glassLayerImageUrl"
+          :glass-opacity="selectedGlassOpacity"
+          :mask-id-base="doorMaskId"
           :x="doorX"
           :y="doorY"
           :width="doorWidth"
           :height="doorHeight"
-          :viewBox="doorViewBox"
-          preserveAspectRatio="none"
-          overflow="visible"
-        >
-          <defs>
-            <mask v-if="selectedVariant.frame_mask_url" :id="frameMaskId" x="0" y="0" :width="doorCanvasWidth" :height="doorCanvasHeight" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance">
-              <image :href="selectedVariant.frame_mask_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
-            </mask>
-            <mask :id="doorMaskId" x="0" y="0" :width="doorCanvasWidth" :height="doorCanvasHeight" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance">
-              <image :href="selectedVariant.door_mask_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
-            </mask>
-            <mask v-if="selectedVariant.door_vertical_decor_mask_url" :id="doorVerticalDecorMaskId" x="0" y="0" :width="doorCanvasWidth" :height="doorCanvasHeight" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance">
-              <image :href="selectedVariant.door_vertical_decor_mask_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
-            </mask>
-            <mask v-if="selectedVariant.door_horizontal_decor_mask_url" :id="doorHorizontalDecorMaskId" x="0" y="0" :width="doorCanvasWidth" :height="doorCanvasHeight" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance">
-              <image :href="selectedVariant.door_horizontal_decor_mask_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
-            </mask>
-            <mask v-if="selectedVariant.frame_vertical_decor_mask_url" :id="frameVerticalDecorMaskId" x="0" y="0" :width="doorCanvasWidth" :height="doorCanvasHeight" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance">
-              <image :href="selectedVariant.frame_vertical_decor_mask_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
-            </mask>
-            <mask v-if="selectedVariant.frame_horizontal_decor_mask_url" :id="frameHorizontalDecorMaskId" x="0" y="0" :width="doorCanvasWidth" :height="doorCanvasHeight" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" mask-type="luminance">
-              <image :href="selectedVariant.frame_horizontal_decor_mask_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
-            </mask>
-            <clipPath :id="doorLeafClipId" clipPathUnits="userSpaceOnUse">
-              <rect x="50" y="54" width="327" height="786" />
-            </clipPath>
-            <clipPath :id="frameHeaderClipId" clipPathUnits="userSpaceOnUse">
-              <rect x="0" y="0" :width="doorCanvasWidth" height="54" />
-            </clipPath>
-            <pattern :id="horizontalDecorPatternId" width="540" height="180" patternUnits="userSpaceOnUse">
-              <image :href="selectedDecorImageUrl" width="540" height="180" preserveAspectRatio="xMidYMid slice" />
-            </pattern>
-            <pattern :id="verticalDecorPatternId" width="180" :height="doorCanvasHeight" patternUnits="userSpaceOnUse">
-              <image :href="selectedDecorImageUrl" :width="doorCanvasHeight" height="180" preserveAspectRatio="xMidYMid slice" transform="translate(180 0) rotate(90)" />
-            </pattern>
-          </defs>
-
-          <!-- Glass texture is drawn exactly once over the door canvas and centre-cropped (`slice`),
-               so the uploaded structure is never stretched nor tiled; the leaf clip keeps it on the panel. -->
-          <image
-            v-if="glassLayerImageUrl && selectedVariant.has_glass"
-            :href="glassLayerImageUrl"
-            :width="doorCanvasWidth"
-            :height="doorCanvasHeight"
-            preserveAspectRatio="xMidYMid slice"
-            :opacity="selectedGlassOpacity"
-            :clip-path="`url(#${doorLeafClipId})`"
-          />
-          <image v-if="selectedVariant.frame_base_url" :href="selectedVariant.frame_base_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
-          <rect
-            v-if="selectedVariant.frame_vertical_decor_mask_url && selectedVariant.frame_horizontal_decor_mask_url"
-            :width="doorCanvasWidth"
-            :height="doorCanvasHeight"
-            :fill="`url(#${verticalDecorPatternId})`"
-            :mask="`url(#${frameVerticalDecorMaskId})`"
-          />
-          <rect
-            v-else-if="selectedVariant.frame_mask_url"
-            :width="doorCanvasWidth"
-            :height="doorCanvasHeight"
-            :fill="`url(#${verticalDecorPatternId})`"
-            :mask="`url(#${frameMaskId})`"
-          />
-          <rect
-            v-if="selectedVariant.frame_vertical_decor_mask_url && selectedVariant.frame_horizontal_decor_mask_url"
-            :width="doorCanvasWidth"
-            :height="doorCanvasHeight"
-            :fill="`url(#${horizontalDecorPatternId})`"
-            :mask="`url(#${frameHorizontalDecorMaskId})`"
-          />
-          <rect
-            v-else-if="selectedVariant.frame_mask_url"
-            :width="doorCanvasWidth"
-            :height="doorCanvasHeight"
-            :fill="`url(#${horizontalDecorPatternId})`"
-            :mask="`url(#${frameMaskId})`"
-            :clip-path="`url(#${frameHeaderClipId})`"
-          />
-          <rect
-            v-if="selectedVariant.door_vertical_decor_mask_url && selectedVariant.door_horizontal_decor_mask_url"
-            :width="doorCanvasWidth"
-            :height="doorCanvasHeight"
-            :fill="`url(#${verticalDecorPatternId})`"
-            :mask="`url(#${doorVerticalDecorMaskId})`"
-          />
-          <rect
-            v-else
-            :width="doorCanvasWidth"
-            :height="doorCanvasHeight"
-            :fill="`url(#${verticalDecorPatternId})`"
-            :mask="`url(#${doorMaskId})`"
-          />
-          <rect
-            v-if="selectedVariant.door_vertical_decor_mask_url && selectedVariant.door_horizontal_decor_mask_url"
-            :width="doorCanvasWidth"
-            :height="doorCanvasHeight"
-            :fill="`url(#${horizontalDecorPatternId})`"
-            :mask="`url(#${doorHorizontalDecorMaskId})`"
-          />
-          <image v-if="selectedVariant.depth_overlay_url" :href="selectedVariant.depth_overlay_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
-          <image v-if="selectedVariant.construction_overlay_url" :href="selectedVariant.construction_overlay_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
-          <image v-if="selectedVariant.handle_overlay_url" :href="selectedVariant.handle_overlay_url" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" />
-        </svg>
+          overflow-visible
+        />
 
         <image v-if="previewScene.scene_foreground_url" :href="previewScene.scene_foreground_url" :width="sceneWidth" :height="sceneHeight" preserveAspectRatio="none" />
       </svg>

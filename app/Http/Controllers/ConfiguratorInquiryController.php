@@ -2,154 +2,99 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Decor;
-use App\Models\DoorModel;
-use App\Models\DoorVariant;
-use App\Models\GlassType;
 use App\Models\Inquiry;
+use App\Models\InquiryItem;
 use App\Models\Surcharge;
 use App\Services\Compliance\ConsentRecorder;
 use App\Services\Inquiry\DoorPreviewImageInspector;
+use App\Services\Inquiry\InquiryItemBuilder;
 use App\Services\Inquiry\InquiryStatus;
 use App\Services\VatCalculator;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
+/**
+ * Stores one configurator inquiry.
+ *
+ * A visitor may configure several doors in one request, so the payload carries an `items` list: every
+ * entry is one separately configured door with its own name, quantity and selection of ids. The older
+ * flat payload (`door_model_id`, `door_variant_id`, ...) is still accepted and becomes a single item,
+ * which keeps the documented one-piece flow and every stored inquiry readable.
+ *
+ * Nothing about the price comes from the browser. Each item is resolved and priced by InquiryItemBuilder
+ * from the database, the item prices are summed into the recap of the inquiry, and the PNG that the
+ * browser composed is stored as an illustration only.
+ */
 class ConfiguratorInquiryController extends Controller
 {
-    public function __invoke(Request $request, ConsentRecorder $consents, DoorPreviewImageInspector $previewInspector): RedirectResponse
-    {
-        $validated = $request->validate([
-            'door_model_id' => ['required', 'exists:door_models,id'],
-            'door_variant_id' => ['required', 'exists:door_variants,id'],
-            'decor_id' => ['nullable', 'exists:decors,id'],
-            'glass_type_id' => ['nullable', 'exists:glass_types,id'],
-            'surcharge_ids' => ['array'],
-            'surcharge_ids.*' => ['integer', 'distinct', 'exists:surcharges,id'],
-            'customer_name' => ['required', 'string', 'max:255'],
-            'customer_email' => ['required', 'email', 'max:255'],
-            'customer_phone' => ['nullable', 'string', 'max:255'],
-            'customer_message' => ['nullable', 'string', 'max:5000'],
-            // The acknowledgement of the privacy policy is a real consent, not a marketing opt-in: the
-            // inquiry carries personal data, so it may only be sent after the visitor confirmed they
-            // read how the workshop processes it.
-            'gdpr_consent' => ['accepted'],
-            // The illustration of the chosen door that the browser composed right before submitting. It is
-            // optional (a legacy browser may not be able to compose it) and it is never part of the stored
-            // configuration: the price and the selection are always validated from the database below.
-            'door_preview' => [
-                'nullable',
-                'file',
-                'mimes:png',
-                'mimetypes:image/png',
-                'max:5120',
-                function (string $attribute, mixed $value, Closure $fail) use ($previewInspector): void {
-                    if (! $value instanceof UploadedFile) {
-                        $fail('Náhled konfigurace se nepodařilo přijmout, odešlete ho prosím znovu.');
+    /**
+     * Messages of the composed PNG, keyed by the validation rule. They are registered twice below,
+     * because the upload is either a field of the legacy payload or a field of one item.
+     */
+    private const PREVIEW_MESSAGES = [
+        'mimes' => 'Náhled konfigurace musí být obrázek ve formátu PNG.',
+        'mimetypes' => 'Náhled konfigurace musí být obrázek ve formátu PNG.',
+        'file' => 'Náhled konfigurace se nepodařilo nahrát, odešlete ho prosím znovu.',
+        'uploaded' => 'Náhled konfigurace se nepodařilo nahrát, maximum je 5 MB.',
+        'max' => 'Náhled konfigurace je příliš velký, maximum je 5 MB.',
+    ];
 
-                        return;
-                    }
+    public function __invoke(
+        Request $request,
+        ConsentRecorder $consents,
+        DoorPreviewImageInspector $previewInspector,
+        InquiryItemBuilder $itemBuilder,
+    ): RedirectResponse {
+        $usesItemPayload = is_array($request->input('items'));
 
-                    $violation = $previewInspector->violation($value);
+        $validated = $request->validate(
+            $this->rules($previewInspector, $usesItemPayload),
+            $this->messages(),
+        );
 
-                    if ($violation !== null) {
-                        $fail($violation);
-                    }
-                },
-            ],
-        ], [
-            'gdpr_consent.accepted' => 'Bez potvrzení seznámení se zásadami ochrany osobních údajů poptávku odeslat nelze.',
-            'door_preview.mimes' => 'Náhled konfigurace musí být obrázek ve formátu PNG.',
-            'door_preview.mimetypes' => 'Náhled konfigurace musí být obrázek ve formátu PNG.',
-            'door_preview.file' => 'Náhled konfigurace se nepodařilo nahrát, odešlete ho prosím znovu.',
-            'door_preview.uploaded' => 'Náhled konfigurace se nepodařilo nahrát, maximum je 5 MB.',
-            'door_preview.max' => 'Náhled konfigurace je příliš velký, maximum je 5 MB.',
-        ]);
+        $selections = $usesItemPayload
+            ? $validated['items']
+            : [$this->legacySelection($validated)];
 
-        $doorModel = DoorModel::query()
-            ->whereKey($validated['door_model_id'])
-            ->where('active', true)
-            ->first();
+        $positions = [];
+        $sequence = 0;
 
-        if (! $doorModel) {
-            throw ValidationException::withMessages([
-                'door_model_id' => 'Vybraný model není dostupný.',
-            ]);
+        foreach ($selections as $index => $selection) {
+            // The original index of the item is kept in the attribute prefix, so a validation error of one
+            // item points at the field the browser sent.
+            $positions[] = $itemBuilder->build(
+                $selection,
+                $usesItemPayload ? 'items.'.$index.'.' : '',
+            ) + [
+                'position' => $sequence++,
+                'preview' => $usesItemPayload ? ($selection['door_preview'] ?? null) : null,
+            ];
         }
 
-        $doorVariant = DoorVariant::query()
-            ->whereKey($validated['door_variant_id'])
-            ->where('door_model_id', $doorModel->id)
-            ->first();
-
-        if (! $doorVariant) {
-            throw ValidationException::withMessages([
-                'door_variant_id' => 'Vybraná varianta nepatří k zvolenému modelu.',
-            ]);
-        }
-
-        $decor = $this->resolveDecor($doorModel, $validated['decor_id'] ?? null);
-        $glassType = $this->resolveGlassType($doorModel, $doorVariant, $validated['glass_type_id'] ?? null);
-        $surcharges = $this->resolveSurcharges($doorModel, $validated['surcharge_ids'] ?? []);
-
-        $priceWithoutVat = (float) $doorModel->base_price_without_vat
-            + (float) $doorVariant->price_modifier
-            + (float) ($decor?->price_modifier ?? 0)
-            + (float) ($glassType?->price_modifier ?? 0)
-            + $surcharges->sum(fn (Surcharge $surcharge): float => (float) $surcharge->price_without_vat);
-
-        $priceWithVat = VatCalculator::applyRate($priceWithoutVat);
+        $summary = $this->summary($positions);
+        $itemSnapshots = array_map(
+            fn (array $position): array => $position['attributes']['configuration'],
+            $positions,
+        );
 
         $configuration = [
-            'door_model' => [
-                'id' => $doorModel->id,
-                'name' => $doorModel->name,
-                'slug' => $doorModel->slug,
-                'category' => $doorModel->category,
-                'base_price_without_vat' => (float) $doorModel->base_price_without_vat,
-            ],
-            'door_variant' => [
-                'id' => $doorVariant->id,
-                'code' => $doorVariant->code,
-                'width' => $doorVariant->width,
-                'height' => $doorVariant->height,
-                'opening_direction' => $doorVariant->opening_direction,
-                'opening_type' => $doorVariant->opening_type,
-                'has_glass' => $doorVariant->has_glass,
-                'sliding_possible' => $doorVariant->sliding_possible,
-                'price_modifier' => (float) $doorVariant->price_modifier,
-            ],
-            'decor' => $decor ? [
-                'id' => $decor->id,
-                'name' => $decor->name,
-                'code' => $decor->code,
-                'price_modifier' => (float) $decor->price_modifier,
-            ] : null,
-            'glass_type' => $glassType ? [
-                'id' => $glassType->id,
-                'name' => $glassType->name,
-                'code' => $glassType->code,
-                'opacity' => $glassType->opacity,
-                'price_modifier' => (float) $glassType->price_modifier,
-            ] : null,
-            'surcharges' => $surcharges
-                ->map(fn (Surcharge $surcharge): array => [
-                    'id' => $surcharge->id,
-                    'name' => $surcharge->name,
-                    'code' => $surcharge->code,
-                    'price_without_vat' => (float) $surcharge->price_without_vat,
-                ])
-                ->values()
-                ->all(),
+            'items' => $itemSnapshots,
+            'summary' => $summary,
+            // The single door shape stays on the top level, so an older reader of the snapshot (and the
+            // editable selects of the administration) keeps seeing what it always saw. For a one piece
+            // request both views describe the same door.
+            'door_model' => $itemSnapshots[0]['door_model'],
+            'door_variant' => $itemSnapshots[0]['door_variant'],
+            'decor' => $itemSnapshots[0]['decor'],
+            'glass_type' => $itemSnapshots[0]['glass_type'],
+            'surcharges' => $itemSnapshots[0]['surcharges'],
             'totals' => [
-                'price_without_vat' => round($priceWithoutVat, 2),
-                'price_with_vat' => $priceWithVat,
-                'vat_rate' => VatCalculator::rate(),
+                'price_without_vat' => $summary['price_without_vat'],
+                'price_with_vat' => $summary['price_with_vat'],
+                'vat_rate' => $summary['vat_rate'],
             ],
         ];
 
@@ -164,38 +109,48 @@ class ConfiguratorInquiryController extends Controller
             'submitted_from' => 'front.configurator',
         ];
 
-        $doorPreview = $validated['door_preview'] ?? null;
+        $legacyPreview = $usesItemPayload ? null : ($validated['door_preview'] ?? null);
 
-        DB::transaction(function () use ($request, $consents, $validated, $doorModel, $doorVariant, $decor, $glassType, $priceWithoutVat, $priceWithVat, $configuration, $crmPayload, $surcharges, $doorPreview): void {
+        DB::transaction(function () use ($request, $consents, $validated, $positions, $summary, $configuration, $crmPayload, $legacyPreview): void {
+            $firstPosition = $positions[0];
+
             $inquiry = Inquiry::query()->create([
-                'door_model_id' => $doorModel->id,
-                'door_variant_id' => $doorVariant->id,
-                'decor_id' => $decor?->id,
-                'glass_type_id' => $glassType?->id,
+                'door_model_id' => $firstPosition['door_model']->id,
+                'door_variant_id' => $firstPosition['door_variant']->id,
+                'decor_id' => $firstPosition['decor']?->id,
+                'glass_type_id' => $firstPosition['glass_type']?->id,
                 'customer_name' => $validated['customer_name'],
                 'customer_email' => $validated['customer_email'],
                 'customer_phone' => $validated['customer_phone'] ?? null,
                 'customer_message' => $validated['customer_message'] ?? null,
-                'price_without_vat' => round($priceWithoutVat, 2),
-                'price_with_vat' => $priceWithVat,
+                'price_without_vat' => $summary['price_without_vat'],
+                'price_with_vat' => $summary['price_with_vat'],
                 'configuration' => $configuration,
                 'crm_payload' => $crmPayload,
                 'status' => InquiryStatus::New->value,
             ]);
 
-            $inquiry->surcharges()->attach(
-                $surcharges->mapWithKeys(fn (Surcharge $surcharge): array => [
-                    $surcharge->id => [
-                        'price_without_vat' => round((float) $surcharge->price_without_vat, 2),
-                    ],
-                ])->all(),
-            );
+            foreach ($positions as $position) {
+                $item = $inquiry->items()->create([
+                    'position' => $position['position'],
+                    ...$position['attributes'],
+                ]);
 
-            // The preview is stored next to the inquiry in the same transaction, so a stored inquiry never
-            // loses the illustration it was sent with. It is stored as media instead of a column, because
-            // the media table is already polymorphic and the file is not part of the quoted configuration.
-            if ($doorPreview instanceof UploadedFile) {
-                $inquiry->addMedia($doorPreview)
+                // The illustration is stored next to its own item in the same transaction, so a stored
+                // item never loses the picture it was sent with. It is never served without a signature.
+                if ($position['preview'] instanceof UploadedFile) {
+                    $item->addMedia($position['preview'])
+                        ->usingFileName('nahlad-polozky-'.$item->getKey().'.png')
+                        ->toMediaCollection(InquiryItem::PREVIEW_COLLECTION);
+                }
+            }
+
+            $this->attachSurcharges($inquiry, $positions);
+
+            // An inquiry of the older one-piece payload keeps its illustration on the inquiry itself,
+            // exactly where it has always been.
+            if ($legacyPreview instanceof UploadedFile) {
+                $inquiry->addMedia($legacyPreview)
                     ->usingFileName('nahlad-poptavky-'.$inquiry->getKey().'.png')
                     ->toMediaCollection(Inquiry::PREVIEW_COLLECTION);
             }
@@ -207,12 +162,21 @@ class ConfiguratorInquiryController extends Controller
                 [
                     'form' => 'konfigurátor dveří',
                     'inquiry_id' => $inquiry->id,
-                    'door_model' => $doorModel->name,
-                    'door_variant' => $doorVariant->code,
-                    'decor' => $decor?->name,
-                    'glass_type' => $glassType?->name,
-                    'surcharges' => $surcharges->pluck('name')->all(),
-                    'price_with_vat' => $priceWithVat,
+                    'door_model' => $firstPosition['door_model']->name,
+                    'door_variant' => $firstPosition['door_variant']->code,
+                    'decor' => $firstPosition['decor']?->name,
+                    'glass_type' => $firstPosition['glass_type']?->name,
+                    'surcharges' => $this->surchargeNames($positions),
+                    'items' => array_map(
+                        fn (array $position): array => [
+                            'name' => $position['attributes']['name'],
+                            'quantity' => $position['attributes']['quantity'],
+                            'price_without_vat' => $position['attributes']['price_without_vat'],
+                        ],
+                        $positions,
+                    ),
+                    'total_doors' => $summary['total_doors'],
+                    'price_with_vat' => $summary['price_with_vat'],
                 ],
                 $request,
                 $validated['customer_name'],
@@ -226,91 +190,190 @@ class ConfiguratorInquiryController extends Controller
             ->with('success', 'Poptávka byla úspěšně odeslána. Ozveme se vám co nejdříve.');
     }
 
-    private function resolveDecor(DoorModel $doorModel, ?int $decorId): ?Decor
+    /**
+     * @return array<string, mixed>
+     */
+    private function rules(DoorPreviewImageInspector $previewInspector, bool $usesItemPayload): array
     {
-        if (! $decorId) {
-            return null;
+        $customerRules = [
+            'customer_name' => ['required', 'string', 'max:255'],
+            'customer_email' => ['required', 'email', 'max:255'],
+            'customer_phone' => ['nullable', 'string', 'max:255'],
+            'customer_message' => ['nullable', 'string', 'max:5000'],
+            // The acknowledgement of the privacy policy is a real consent, not a marketing opt-in: the
+            // inquiry carries personal data, so it may only be sent after the visitor confirmed they
+            // read how the workshop processes it.
+            'gdpr_consent' => ['accepted'],
+        ];
+
+        if ($usesItemPayload) {
+            return [
+                ...$customerRules,
+                'items' => ['required', 'array', 'min:1', 'max:'.InquiryItem::MAX_ITEMS_PER_INQUIRY],
+                'items.*.name' => ['nullable', 'string', 'max:160'],
+                'items.*.quantity' => ['required', 'integer', 'min:1', 'max:'.InquiryItem::MAX_QUANTITY_PER_ITEM],
+                'items.*.door_model_id' => ['required', 'exists:door_models,id'],
+                'items.*.door_variant_id' => ['required', 'exists:door_variants,id'],
+                'items.*.decor_id' => ['nullable', 'exists:decors,id'],
+                'items.*.glass_type_id' => ['nullable', 'exists:glass_types,id'],
+                'items.*.surcharge_ids' => ['array'],
+                'items.*.surcharge_ids.*' => ['integer', 'distinct', 'exists:surcharges,id'],
+                'items.*.door_preview' => $this->previewRules($previewInspector),
+            ];
         }
 
-        $decor = Decor::query()
-            ->whereKey($decorId)
-            ->where('active', true)
-            ->first();
-
-        if (! $decor || ! $doorModel->decors()->whereKey($decor->id)->exists()) {
-            throw ValidationException::withMessages([
-                'decor_id' => 'Vybraný dekor není dostupný pro zvolený model.',
-            ]);
-        }
-
-        return $decor;
-    }
-
-    private function resolveGlassType(DoorModel $doorModel, DoorVariant $doorVariant, ?int $glassTypeId): ?GlassType
-    {
-        if (! $doorVariant->has_glass) {
-            if ($glassTypeId) {
-                throw ValidationException::withMessages([
-                    'glass_type_id' => 'Vybraná varianta neumožňuje sklo.',
-                ]);
-            }
-
-            return null;
-        }
-
-        if (! $glassTypeId) {
-            return null;
-        }
-
-        $glassType = GlassType::query()
-            ->whereKey($glassTypeId)
-            ->where('active', true)
-            ->first();
-
-        if (! $glassType || ! $doorModel->glasses()->whereKey($glassType->id)->exists()) {
-            throw ValidationException::withMessages([
-                'glass_type_id' => 'Vybrané sklo není dostupné pro zvolený model.',
-            ]);
-        }
-
-        return $glassType;
+        return [
+            ...$customerRules,
+            'door_model_id' => ['required', 'exists:door_models,id'],
+            'door_variant_id' => ['required', 'exists:door_variants,id'],
+            'decor_id' => ['nullable', 'exists:decors,id'],
+            'glass_type_id' => ['nullable', 'exists:glass_types,id'],
+            'surcharge_ids' => ['array'],
+            'surcharge_ids.*' => ['integer', 'distinct', 'exists:surcharges,id'],
+            // The illustration of the chosen door that the browser composed right before submitting. It
+            // is optional (a legacy browser may not be able to compose it) and it is never part of the
+            // stored configuration: the price and the selection are always validated from the database.
+            'door_preview' => $this->previewRules($previewInspector),
+        ];
     }
 
     /**
-     * @param  array<int, int>  $surchargeIds
-     * @return Collection<int, Surcharge>
+     * @return list<mixed>
      */
-    private function resolveSurcharges(DoorModel $doorModel, array $surchargeIds): Collection
+    private function previewRules(DoorPreviewImageInspector $previewInspector): array
     {
-        if ($surchargeIds === []) {
-            return collect();
+        return [
+            'nullable',
+            'file',
+            'mimes:png',
+            'mimetypes:image/png',
+            'max:5120',
+            function (string $attribute, mixed $value, Closure $fail) use ($previewInspector): void {
+                if (! $value instanceof UploadedFile) {
+                    $fail('Náhled konfigurace se nepodařilo přijmout, odešlete ho prosím znovu.');
+
+                    return;
+                }
+
+                $violation = $previewInspector->violation($value);
+
+                if ($violation !== null) {
+                    $fail($violation);
+                }
+            },
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function messages(): array
+    {
+        $messages = [
+            'gdpr_consent.accepted' => 'Bez potvrzení seznámení se zásadami ochrany osobních údajů poptávku odeslat nelze.',
+            'items.required' => 'Poptávka musí obsahovat alespoň jednu konfiguraci.',
+            'items.min' => 'Poptávka musí obsahovat alespoň jednu konfiguraci.',
+            'items.max' => 'Najednou lze poptat nejvýše '.InquiryItem::MAX_ITEMS_PER_INQUIRY.' konfigurací.',
+            'items.*.quantity.required' => 'U každé položky vyplňte počet kusů.',
+            'items.*.quantity.integer' => 'Počet kusů musí být celé číslo.',
+            'items.*.quantity.min' => 'Počet kusů musí být alespoň 1.',
+            'items.*.quantity.max' => 'U jedné položky lze poptat nejvýše '.InquiryItem::MAX_QUANTITY_PER_ITEM.' kusů.',
+        ];
+
+        foreach (self::PREVIEW_MESSAGES as $rule => $message) {
+            $messages['door_preview.'.$rule] = $message;
+            $messages['items.*.door_preview.'.$rule] = $message;
         }
 
-        $orderedSurchargeIds = array_values($surchargeIds);
+        return $messages;
+    }
 
-        $surcharges = Surcharge::query()
-            ->whereIn('id', $orderedSurchargeIds)
-            ->where('active', true)
-            ->get();
+    /**
+     * The flat payload of the one piece flow, expressed as the single item it describes.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function legacySelection(array $validated): array
+    {
+        return [
+            'name' => null,
+            'quantity' => 1,
+            'door_model_id' => $validated['door_model_id'],
+            'door_variant_id' => $validated['door_variant_id'],
+            'decor_id' => $validated['decor_id'] ?? null,
+            'glass_type_id' => $validated['glass_type_id'] ?? null,
+            'surcharge_ids' => $validated['surcharge_ids'] ?? [],
+        ];
+    }
 
-        if ($surcharges->count() !== count($orderedSurchargeIds)) {
-            throw ValidationException::withMessages([
-                'surcharge_ids' => 'Některé příplatky nejsou dostupné.',
-            ]);
+    /**
+     * The recap of the whole request: the number of doors and the three price levels the customer saw.
+     *
+     * @param  list<array{attributes: array<string, mixed>}>  $positions
+     * @return array{total_doors: int, price_without_vat: float, vat_amount: float, price_with_vat: float, vat_rate: float}
+     */
+    private function summary(array $positions): array
+    {
+        $priceWithoutVat = 0.0;
+        $priceWithVat = 0.0;
+        $totalDoors = 0;
+
+        foreach ($positions as $position) {
+            $totalDoors += (int) $position['attributes']['quantity'];
+            $priceWithoutVat += (float) $position['attributes']['price_without_vat'];
+            $priceWithVat += (float) $position['attributes']['price_with_vat'];
         }
 
-        $allowedSurchargeIds = $doorModel->surcharges()
-            ->whereIn('surcharges.id', $orderedSurchargeIds)
-            ->pluck('surcharges.id');
+        $priceWithoutVat = round($priceWithoutVat, 2);
+        $priceWithVat = round($priceWithVat, 2);
 
-        if ($allowedSurchargeIds->count() !== count($orderedSurchargeIds)) {
-            throw ValidationException::withMessages([
-                'surcharge_ids' => 'Vybrané příplatky nejsou dostupné pro zvolený model.',
-            ]);
+        return [
+            'total_doors' => $totalDoors,
+            'price_without_vat' => $priceWithoutVat,
+            'vat_amount' => round($priceWithVat - $priceWithoutVat, 2),
+            'price_with_vat' => $priceWithVat,
+            'vat_rate' => VatCalculator::rate(),
+        ];
+    }
+
+    /**
+     * The pivot has one row per surcharge of the whole inquiry, so the surcharges of all items are
+     * deduplicated. The price per piece stays in the snapshot of every item.
+     *
+     * @param  list<array{surcharges: \Illuminate\Support\Collection<int, Surcharge>}>  $positions
+     */
+    private function attachSurcharges(Inquiry $inquiry, array $positions): void
+    {
+        $prices = [];
+
+        foreach ($positions as $position) {
+            foreach ($position['surcharges'] as $surcharge) {
+                $prices[$surcharge->id] ??= round((float) $surcharge->price_without_vat, 2);
+            }
         }
 
-        return $surcharges
-            ->sortBy(fn (Surcharge $surcharge): int => array_search($surcharge->id, $orderedSurchargeIds, true) ?: 0)
-            ->values();
+        if ($prices === []) {
+            return;
+        }
+
+        $inquiry->surcharges()->attach($prices);
+    }
+
+    /**
+     * @param  list<array{surcharges: \Illuminate\Support\Collection<int, Surcharge>}>  $positions
+     * @return list<string>
+     */
+    private function surchargeNames(array $positions): array
+    {
+        $names = [];
+
+        foreach ($positions as $position) {
+            foreach ($position['surcharges'] as $surcharge) {
+                $names[$surcharge->id] = $surcharge->name;
+            }
+        }
+
+        return array_values($names);
     }
 }

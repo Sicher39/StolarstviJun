@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\Inquiry\InquiryPreviewResolver;
 use Filament\Support\Assets\Js;
 use Filament\Support\Facades\FilamentAsset;
 use Illuminate\Support\ServiceProvider;
@@ -13,7 +14,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // The preview resolver memoises one media lookup per inquiry and per selection, so the closures
+        // of a single rendered form or table share one instance. A scoped binding is reset between
+        // requests, which keeps the memo from outliving the records it describes.
+        $this->app->scoped(InquiryPreviewResolver::class);
     }
 
     /**

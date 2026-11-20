@@ -6,6 +6,7 @@ use App\Models\Decor;
 use App\Models\DoorModel;
 use App\Models\DoorVariant;
 use App\Models\GlassType;
+use App\Models\InquiryItem;
 use App\Models\PreviewScene;
 use App\Models\PreviewSceneMaterial;
 use App\Models\Surcharge;
@@ -132,6 +133,12 @@ class ConfiguratorController extends Controller
         return Inertia::render('Configurator', [
             'doorModels' => $doorModels,
             'vatRate' => VatCalculator::rate(),
+            // The browser needs the same limits the inquiry endpoint enforces, so the visitor is stopped
+            // before a request is built that the server would refuse anyway.
+            'limits' => [
+                'max_items' => InquiryItem::MAX_ITEMS_PER_INQUIRY,
+                'max_quantity_per_item' => InquiryItem::MAX_QUANTITY_PER_ITEM,
+            ],
             'previewScene' => $previewScene ? [
                 'id' => $previewScene->id,
                 'name' => $previewScene->name,

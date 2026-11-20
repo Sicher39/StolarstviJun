@@ -4,14 +4,23 @@ namespace Tests\Feature;
 
 use App\Filament\Resources\InquiryResource;
 use App\Filament\Resources\InquiryResource\Pages\ListInquiries;
+use App\Models\Decor;
 use App\Models\DoorModel;
 use App\Models\DoorVariant;
+use App\Models\GlassType;
 use App\Models\Inquiry;
+use App\Models\InquiryItem;
+use App\Models\Surcharge;
+use App\Services\Inquiry\InquiryItemBuilder;
+use App\Services\Inquiry\InquiryItemSelectionResolver;
 use App\Services\Inquiry\InquiryPreviewResolver;
 use App\Services\Inquiry\InquirySnapshotPresenter;
 use App\Services\Inquiry\InquiryStatus;
+use App\Services\Inquiry\InquiryTotalsCalculator;
 use Filament\Forms\Components\Field;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -82,8 +91,79 @@ class InquiryResourceTest extends TestCase
 
         $this->assertSame([], $presenter->lines(null));
         $this->assertSame([], $presenter->lines([]));
+        $this->assertSame([], $presenter->summaryLines(null));
+        $this->assertSame([], $presenter->itemLines(null));
+        $this->assertSame([], $presenter->itemPriceLines(null));
         $this->assertNull($presenter->computedTotals(null));
         $this->assertNull($presenter->computedTotals(['door_model' => ['name' => 'Model X']]));
+    }
+
+    public function test_the_recap_of_a_legacy_snapshot_counts_one_door_and_derives_the_vat_amount(): void
+    {
+        $summary = array_column(
+            app(InquirySnapshotPresenter::class)->summaryLines($this->configuration()),
+            'value',
+            'label',
+        );
+
+        // The configurator of that time asked for one door only, so a stored snapshot without a summary is one piece.
+        $this->assertSame('1 ks', $summary['Celkem dveří']);
+        $this->assertSame('1 750,00 Kč', $summary['Cena bez DPH']);
+        $this->assertSame('367,50 Kč', $summary['DPH']);
+        $this->assertSame('2 117,50 Kč', $summary['Cena s DPH']);
+        $this->assertSame('21 %', $summary['Sazba DPH']);
+    }
+
+    public function test_the_items_of_a_request_show_their_own_prices_and_the_recap_of_all_of_them(): void
+    {
+        $presenter = app(InquirySnapshotPresenter::class);
+        $configuration = $this->multiItemConfiguration();
+
+        $summary = array_column($presenter->summaryLines($configuration), 'value', 'label');
+
+        $this->assertSame('3 ks', $summary['Celkem dveří']);
+        $this->assertSame('4 250,00 Kč', $summary['Cena bez DPH']);
+        $this->assertSame('892,50 Kč', $summary['DPH']);
+        $this->assertSame('5 142,50 Kč', $summary['Cena s DPH']);
+        $this->assertSame('21 %', $summary['Sazba DPH']);
+
+        // The price per piece is always shown next to the line price of the same item.
+        $secondItem = array_column($presenter->itemPriceLines($configuration['items'][1]), 'value', 'label');
+
+        $this->assertSame('2 ks', $secondItem['Množství']);
+        $this->assertSame('1 350,00 Kč', $secondItem['Cena za kus bez DPH']);
+        $this->assertSame('2 700,00 Kč', $secondItem['Cena celkem bez DPH']);
+        $this->assertSame('3 267,00 Kč', $secondItem['Cena celkem s DPH']);
+
+        $selection = array_column($presenter->itemLines($configuration['items'][0]), 'value', 'label');
+
+        $this->assertSame('Interiérové dveře Nord', $selection['Model dveří']);
+        $this->assertSame('Montáž (50,00 Kč)', $selection['Příplatky']);
+
+        // The single door view of the same snapshot keeps describing the first item with the order totals.
+        $legacy = array_column($presenter->lines($configuration), 'value', 'label');
+
+        $this->assertSame('4 250,00 Kč', $legacy['Spočtená cena bez DPH']);
+        $this->assertSame('5 142,50 Kč (21 %)', $legacy['Spočtená cena s DPH']);
+        $this->assertSame(
+            'Konfigurátor spočítal 4 250,00 Kč bez DPH / 5 142,50 Kč s DPH (sazba DPH 21 %).',
+            $presenter->computedTotals($configuration),
+        );
+    }
+
+    public function test_the_number_of_doors_of_an_inquiry_is_summed_from_its_items(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+
+        $inquiry = $this->inquiry($doorModel, $variant);
+
+        // An inquiry stored before the items existed describes one door.
+        $this->assertSame(1, $inquiry->totalDoors());
+
+        $this->item($inquiry, 'Dveře do ložnice', 2);
+        $this->item($inquiry, 'Dveře do koupelny', 3);
+
+        $this->assertSame(5, $inquiry->fresh()->totalDoors());
     }
 
     public function test_the_record_stays_editable_and_the_raw_json_is_gone(): void
@@ -247,6 +327,381 @@ class InquiryResourceTest extends TestCase
         $this->assertSame(Inquiry::PREVIEW_DISK, $inquiry->getFirstMedia(Inquiry::PREVIEW_COLLECTION)?->disk);
     }
 
+    public function test_the_preview_of_an_item_uses_the_image_of_that_item(): void
+    {
+        Storage::fake(InquiryItem::PREVIEW_DISK, ['url' => 'http://localhost/storage']);
+
+        [$doorModel, $variant] = $this->catalog();
+
+        $item = $this->item($this->inquiry($doorModel, $variant));
+
+        $item->addMediaFromString($this->pngBytes(300, 600))
+            ->usingFileName('nahlad-polozky-'.$item->getKey().'.png')
+            ->toMediaCollection(InquiryItem::PREVIEW_COLLECTION);
+
+        $preview = app(InquiryPreviewResolver::class)->resolveItem($item);
+
+        $this->assertNotNull($preview);
+        $this->assertSame('Vygenerovaný náhled položky', $preview['label']);
+        $this->assertStringContainsString('nahlad-polozky-', $preview['url']);
+        $this->assertStringContainsString('expiration=', $preview['url']);
+        $this->assertSame(InquiryItem::PREVIEW_DISK, $item->getFirstMedia(InquiryItem::PREVIEW_COLLECTION)?->disk);
+    }
+
+    public function test_the_inquiry_preview_falls_back_to_the_image_of_the_first_item(): void
+    {
+        Storage::fake('public', ['url' => 'http://localhost/storage']);
+        Storage::fake(InquiryItem::PREVIEW_DISK, ['url' => 'http://localhost/storage']);
+
+        [$doorModel, $variant] = $this->catalog();
+
+        $variant->addMediaFromString('reference')
+            ->usingFileName('source-reference.png')
+            ->toMediaCollection('source_reference');
+
+        $inquiry = $this->inquiry($doorModel, $variant);
+        $item = $this->item($inquiry);
+
+        $item->addMediaFromString($this->pngBytes(300, 600))
+            ->usingFileName('nahlad-polozky-'.$item->getKey().'.png')
+            ->toMediaCollection(InquiryItem::PREVIEW_COLLECTION);
+
+        $preview = app(InquiryPreviewResolver::class)->resolve($inquiry);
+
+        $this->assertNotNull($preview);
+        // The image of the item describes this very request, so it wins over the catalog reference image.
+        $this->assertSame('Vygenerovaný náhled položky', $preview['label']);
+        $this->assertStringContainsString('nahlad-polozky-', $preview['url']);
+    }
+
+    public function test_an_item_without_a_generated_image_has_no_preview(): void
+    {
+        $resolver = app(InquiryPreviewResolver::class);
+
+        $this->assertNull($resolver->resolveItem(null));
+
+        [$doorModel, $variant] = $this->catalog();
+
+        $this->assertNull($resolver->resolveItem($this->item($this->inquiry($doorModel, $variant))));
+    }
+
+    public function test_the_doors_of_a_request_are_edited_in_one_repeater_per_item(): void
+    {
+        $repeater = null;
+
+        foreach (InquiryResource::formFields()['items'] as $component) {
+            if ($component instanceof Repeater) {
+                $repeater = $component;
+            }
+        }
+
+        $this->assertInstanceOf(Repeater::class, $repeater, 'Položky poptávky se upravují v repeateru, ne v jediném poli.');
+        $this->assertSame('items', $repeater->getName());
+        $this->assertSame('items', $repeater->getRelationshipName());
+        $this->assertSame('position', $repeater->getOrderColumn());
+        $this->assertSame(InquiryItem::MAX_ITEMS_PER_INQUIRY, $repeater->getMaxItems());
+    }
+
+    public function test_an_item_keeps_its_own_selection_mass_quantity_and_prices(): void
+    {
+        $fillable = (new InquiryItem)->getFillable();
+
+        foreach ([
+            'name',
+            'quantity',
+            'door_model_id',
+            'door_variant_id',
+            'decor_id',
+            'glass_type_id',
+            'unit_price_without_vat',
+            'price_without_vat',
+            'price_with_vat',
+        ] as $attribute) {
+            $this->assertContains($attribute, $fillable, 'Položka poptávky nemůže uložit '.$attribute.'.');
+        }
+
+        // The snapshot is written by the configurator only and never becomes an editable field, while the
+        // items repeater is part of the form.
+        $fieldNames = [];
+
+        foreach (InquiryResource::formFields() as $components) {
+            foreach ($components as $component) {
+                if ($component instanceof Field) {
+                    $fieldNames[] = $component->getName();
+                }
+            }
+        }
+
+        $this->assertNotContains('configuration', $fieldNames);
+        $this->assertContains('items', $fieldNames);
+    }
+
+    public function test_saving_recalculates_the_line_prices_and_the_totals_of_the_inquiry_from_its_items(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+
+        $inquiry = $this->inquiry($doorModel, $variant);
+
+        $first = $inquiry->items()->create([
+            'position' => 1,
+            'name' => 'Dveře do ložnice',
+            'quantity' => 1,
+            'door_model_id' => $doorModel->id,
+            'door_variant_id' => $variant->id,
+            'unit_price_without_vat' => 1750,
+            'configuration' => $this->configuration(),
+        ]);
+
+        $second = $inquiry->items()->create([
+            'position' => 2,
+            'name' => 'Dveře do koupelny',
+            'quantity' => 3,
+            'unit_price_without_vat' => 1000,
+            'configuration' => $this->configuration(),
+        ]);
+
+        app(InquiryTotalsCalculator::class)->recalculate($inquiry);
+
+        $first->refresh();
+        $second->refresh();
+        $inquiry->refresh();
+
+        // Every line is the price per piece multiplied by the quantity of that item.
+        $this->assertEquals(1750.0, (float) $first->price_without_vat);
+        $this->assertEquals(2117.5, (float) $first->price_with_vat);
+        $this->assertEquals(3000.0, (float) $second->price_without_vat);
+        $this->assertEquals(3630.0, (float) $second->price_with_vat);
+
+        // The inquiry only mirrors their sum and the selection of the first door, so the readers of the
+        // older one-piece shape keep seeing a consistent record.
+        $this->assertEquals(4750.0, (float) $inquiry->price_without_vat);
+        $this->assertEquals(5747.5, (float) $inquiry->price_with_vat);
+        $this->assertSame($doorModel->id, (int) $inquiry->door_model_id);
+        $this->assertSame($variant->id, (int) $inquiry->door_variant_id);
+        $this->assertSame(4, $inquiry->totalDoors());
+
+        // The snapshot of an item is the record of what the customer sent and is never rewritten.
+        $this->assertSame($this->configuration(), $first->snapshot());
+    }
+
+    public function test_a_quantity_outside_the_documented_range_is_corrected_on_save(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+
+        $inquiry = $this->inquiry($doorModel, $variant);
+
+        $item = $inquiry->items()->create([
+            'position' => 1,
+            'name' => 'Dveře do obývacího pokoje',
+            'quantity' => 250,
+            'unit_price_without_vat' => 1000,
+            'configuration' => $this->configuration(),
+        ]);
+
+        app(InquiryTotalsCalculator::class)->recalculate($inquiry);
+
+        $item->refresh();
+
+        $this->assertSame(InquiryItem::MAX_QUANTITY_PER_ITEM, $item->quantity);
+        $this->assertEquals(100000.0, (float) $item->price_without_vat);
+    }
+
+    public function test_an_inquiry_without_items_keeps_the_prices_that_were_typed_by_hand(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+
+        $inquiry = $this->inquiry($doorModel, $variant);
+
+        app(InquiryTotalsCalculator::class)->recalculate($inquiry);
+
+        $inquiry->refresh();
+
+        $this->assertEquals(1750.0, (float) $inquiry->price_without_vat);
+        $this->assertEquals(2117.5, (float) $inquiry->price_with_vat);
+
+        $summary = app(InquiryTotalsCalculator::class)->summary($inquiry);
+
+        $this->assertSame(1, $summary['total_doors']);
+        $this->assertEquals(1750.0, $summary['price_without_vat']);
+        $this->assertEquals(367.5, $summary['vat_amount']);
+        $this->assertEquals(2117.5, $summary['price_with_vat']);
+    }
+
+    public function test_the_summary_of_a_multi_item_inquiry_is_summed_from_the_items(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+
+        $inquiry = $this->inquiry($doorModel, $variant);
+
+        $inquiry->items()->create([
+            'position' => 1,
+            'name' => 'Dveře do ložnice',
+            'quantity' => 1,
+            'unit_price_without_vat' => 1750,
+            'price_without_vat' => 1750,
+            'price_with_vat' => 2117.5,
+            'configuration' => $this->configuration(),
+        ]);
+
+        $inquiry->items()->create([
+            'position' => 2,
+            'name' => 'Dveře do koupelny',
+            'quantity' => 2,
+            'unit_price_without_vat' => 1350,
+            'price_without_vat' => 2700,
+            'price_with_vat' => 3267,
+            'configuration' => $this->configuration(),
+        ]);
+
+        $summary = app(InquiryTotalsCalculator::class)->summary($inquiry->fresh());
+
+        $this->assertSame(3, $summary['total_doors']);
+        $this->assertEquals(4450.0, $summary['price_without_vat']);
+        $this->assertEquals(934.5, $summary['vat_amount']);
+        $this->assertEquals(5384.5, $summary['price_with_vat']);
+    }
+
+    public function test_the_live_sum_of_the_items_is_presented_like_the_recap_of_a_snapshot(): void
+    {
+        $lines = array_column(
+            app(InquirySnapshotPresenter::class)->totalsLines([
+                'total_doors' => 3,
+                'price_without_vat' => 4250.0,
+                'vat_amount' => 892.5,
+                'price_with_vat' => 5142.5,
+                'vat_rate' => 21.0,
+            ]),
+            'value',
+            'label',
+        );
+
+        $this->assertSame('3 ks', $lines['Celkem dveří']);
+        $this->assertSame('4 250,00 Kč', $lines['Cena bez DPH']);
+        $this->assertSame('892,50 Kč', $lines['DPH']);
+        $this->assertSame('5 142,50 Kč', $lines['Cena s DPH']);
+        $this->assertSame('21 %', $lines['Sazba DPH']);
+    }
+
+    public function test_the_price_per_piece_is_resolved_from_the_catalog(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+
+        $decor = Decor::query()->create([
+            'name' => 'Dekor '.uniqid(),
+            'price_modifier' => 150,
+            'active' => true,
+        ]);
+
+        $glassType = GlassType::query()->create([
+            'name' => 'Sklo '.uniqid(),
+            'price_modifier' => 100,
+            'active' => true,
+        ]);
+
+        $surcharge = Surcharge::query()->create([
+            'name' => 'Montáž '.uniqid(),
+            'price_without_vat' => 50,
+            'active' => true,
+        ]);
+
+        $doorModel->decors()->attach($decor->id);
+        $doorModel->glasses()->attach($glassType->id);
+        $doorModel->surcharges()->attach($surcharge->id);
+
+        $builder = app(InquiryItemBuilder::class);
+
+        // The documented formula: model + variant + decor + glass + surcharges.
+        $this->assertEquals(1500.0, $builder->catalogUnitPrice(
+            $doorModel->id,
+            $variant->id,
+            $decor->id,
+            $glassType->id,
+            [$surcharge->id],
+        ));
+
+        // Without the decor, the glass and the surcharge only the base price and the variant remain.
+        $this->assertEquals(1200.0, $builder->catalogUnitPrice($doorModel->id, $variant->id, null, null));
+
+        // A missing model or variant is refused instead of priced, so the form can ask for a correction.
+        $this->assertNull($builder->catalogUnitPrice(null, $variant->id, null, null));
+        $this->assertNull($builder->catalogUnitPrice($doorModel->id, null, null, null));
+    }
+
+    public function test_the_selection_of_a_stored_item_is_read_from_its_snapshot_when_the_columns_are_empty(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+
+        $inquiry = $this->inquiry($doorModel, $variant);
+
+        $item = $inquiry->items()->create([
+            'position' => 1,
+            'name' => 'Dveře do ložnice',
+            'quantity' => 1,
+            'unit_price_without_vat' => 1750,
+            'configuration' => [
+                'door_model' => ['id' => $doorModel->id],
+                'door_variant' => ['id' => $variant->id],
+                'decor' => null,
+                'glass_type' => null,
+            ],
+        ]);
+
+        $fillData = app(InquiryItemSelectionResolver::class)->withSnapshotSelection($item->attributesToArray());
+
+        $this->assertSame($doorModel->id, $fillData['door_model_id']);
+        $this->assertSame($variant->id, $fillData['door_variant_id']);
+        $this->assertNull($fillData['decor_id']);
+        $this->assertNull($fillData['glass_type_id']);
+    }
+
+    public function test_a_snapshot_id_that_no_longer_exists_is_not_pushed_into_the_foreign_keys(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+
+        $inquiry = $this->inquiry($doorModel, $variant);
+
+        $item = $inquiry->items()->create([
+            'position' => 1,
+            'name' => 'Dveře z neplatného snapshotu',
+            'quantity' => 1,
+            'unit_price_without_vat' => 1750,
+            'configuration' => [
+                // The model of the snapshot is gone and the decor row does not exist at all, so neither
+                // may be pushed into the foreign key columns of the item.
+                'door_model' => ['id' => 999999999],
+                'door_variant' => ['id' => $variant->id],
+                'decor' => ['id' => 999999998],
+                'glass_type' => null,
+            ],
+        ]);
+
+        $fillData = app(InquiryItemSelectionResolver::class)->withSnapshotSelection($item->attributesToArray());
+
+        $this->assertNull($fillData['door_model_id']);
+        $this->assertSame($variant->id, $fillData['door_variant_id']);
+        $this->assertNull($fillData['decor_id']);
+    }
+
+    public function test_the_preview_of_an_edited_selection_uses_the_reference_image_of_the_variant(): void
+    {
+        Storage::fake('public', ['url' => 'http://localhost/storage']);
+
+        [$doorModel, $variant] = $this->catalog();
+
+        $variant->addMediaFromString('reference')
+            ->usingFileName('source-reference.png')
+            ->toMediaCollection('source_reference');
+
+        $resolver = app(InquiryPreviewResolver::class);
+
+        $preview = $resolver->resolveSelection($doorModel->id, $variant->id, null, null);
+
+        $this->assertNotNull($preview);
+        $this->assertStringContainsString('source-reference.png', $preview['url']);
+        $this->assertSame('Referenční obrázek varianty', $preview['label']);
+        $this->assertNull($resolver->resolveSelection(null, null, null, null));
+    }
+
     /**
      * @return array{0: DoorModel, 1: DoorVariant}
      */
@@ -284,6 +739,22 @@ class InquiryResourceTest extends TestCase
             'price_with_vat' => 2117.5,
             'configuration' => $this->configuration(),
             'status' => $status->value,
+        ]);
+    }
+
+    /**
+     * One configured door of the request, stored the way ConfiguratorInquiryController writes it.
+     */
+    private function item(Inquiry $inquiry, string $name = 'Dveře do ložnice', int $quantity = 1): InquiryItem
+    {
+        return $inquiry->items()->create([
+            'position' => 0,
+            'name' => $name,
+            'quantity' => $quantity,
+            'unit_price_without_vat' => 1750,
+            'price_without_vat' => 1750 * $quantity,
+            'price_with_vat' => round(1750 * $quantity * 1.21, 2),
+            'configuration' => $this->configuration(),
         ]);
     }
 
@@ -356,6 +827,60 @@ class InquiryResourceTest extends TestCase
             'totals' => [
                 'price_without_vat' => 1750.0,
                 'price_with_vat' => 2117.5,
+                'vat_rate' => 21.0,
+            ],
+        ];
+    }
+
+    /**
+     * A request with two separately configured doors, in the shape the controller stores it: the items
+     * carry their own prices, the summary carries the recap of the whole request and the single door view
+     * on the top level describes the first item.
+     *
+     * @return array<string, mixed>
+     */
+    private function multiItemConfiguration(): array
+    {
+        $firstItem = $this->configuration();
+        $firstItem['name'] = 'Dveře do ložnice';
+        $firstItem['quantity'] = 1;
+        $firstItem['totals'] = [
+            'quantity' => 1,
+            'unit_price_without_vat' => 1750.0,
+            'price_without_vat' => 1750.0,
+            'price_with_vat' => 2117.5,
+            'vat_rate' => 21.0,
+        ];
+
+        $secondItem = $this->configuration();
+        $secondItem['name'] = 'Dveře do koupelny';
+        $secondItem['quantity'] = 2;
+        $secondItem['glass_type'] = null;
+        $secondItem['totals'] = [
+            'quantity' => 2,
+            'unit_price_without_vat' => 1350.0,
+            'price_without_vat' => 2700.0,
+            'price_with_vat' => 3267.0,
+            'vat_rate' => 21.0,
+        ];
+
+        return [
+            'items' => [$firstItem, $secondItem],
+            'summary' => [
+                'total_doors' => 3,
+                'price_without_vat' => 4250.0,
+                'vat_amount' => 892.5,
+                'price_with_vat' => 5142.5,
+                'vat_rate' => 21.0,
+            ],
+            'door_model' => $firstItem['door_model'],
+            'door_variant' => $firstItem['door_variant'],
+            'decor' => $firstItem['decor'],
+            'glass_type' => $firstItem['glass_type'],
+            'surcharges' => $firstItem['surcharges'],
+            'totals' => [
+                'price_without_vat' => 4250.0,
+                'price_with_vat' => 5142.5,
                 'vat_rate' => 21.0,
             ],
         ];

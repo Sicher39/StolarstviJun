@@ -8,7 +8,7 @@ interface InquiryFormShape {
   customer_message: string
   gdpr_consent: boolean
   processing: boolean
-  errors: Partial<Record<'customer_name' | 'customer_email' | 'customer_phone' | 'customer_message' | 'gdpr_consent' | 'door_preview', string>>
+  errors: Partial<Record<'customer_name' | 'customer_email' | 'customer_phone' | 'customer_message' | 'gdpr_consent' | 'door_preview' | 'items', string>>
 }
 
 const props = defineProps<{
@@ -130,12 +130,12 @@ const privacyPolicyUrl = computed((): string => route('front.gdpr'))
       </div>
 
       <div class="pt-2">
-        <p class="text-xs leading-relaxed text-white/50">
-          K poptávce se automaticky přiloží náhled vybraných dveří bez okolí a bez vašich údajů.
-        </p>
-
         <p v-if="previewError" class="mt-3 border border-red-400/40 bg-red-400/10 p-3 text-sm text-red-200" role="alert">
           {{ previewError }}
+        </p>
+
+        <p v-if="form.errors.items" class="mt-3 border border-red-400/40 bg-red-400/10 p-3 text-sm text-red-200" role="alert">
+          {{ form.errors.items }}
         </p>
 
         <p v-if="form.errors.door_preview" class="mt-3 text-sm text-red-300">

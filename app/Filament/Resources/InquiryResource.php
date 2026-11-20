@@ -4,14 +4,27 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\InquiryResource\Pages\EditInquiry;
 use App\Filament\Resources\InquiryResource\Pages\ListInquiries;
+use App\Models\Decor;
+use App\Models\DoorModel;
+use App\Models\DoorVariant;
+use App\Models\GlassType;
 use App\Models\Inquiry;
+use App\Models\InquiryItem;
+use App\Services\Inquiry\InquiryItemBuilder;
+use App\Services\Inquiry\InquiryItemSelectionResolver;
 use App\Services\Inquiry\InquiryPreviewResolver;
 use App\Services\Inquiry\InquirySnapshotPresenter;
 use App\Services\Inquiry\InquiryStatus;
+use App\Services\Inquiry\InquiryTotalsCalculator;
+use App\Services\VatCalculator;
+use Closure;
+use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Grid;
@@ -19,19 +32,26 @@ use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Image;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Text;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
 /**
- * Inquiries sent from the configurator, edited as one record in two columns: the customer on the
- * left, the chosen configuration and the price on the right, the best available door image below.
+ * Inquiries sent from the configurator, edited as one record in two columns: the customer on the left,
+ * the doors of the request and their prices below.
+ *
+ * A request may carry several separately configured doors. They are edited one by one in the items
+ * repeater, each with its own name, quantity, catalog selection, price per piece and the resulting line
+ * price; the totals of the inquiry are then recomputed from the items on every save (see
+ * InquiryTotalsCalculator), never typed by hand. An inquiry stored before the items existed keeps the
+ * single door view instead: its four catalog selects and its two prices stay editable exactly as before.
  *
  * The `configuration` and `crm_payload` JSON snapshots are never edited here. `configuration` is shown
  * as read only text through InquirySnapshotPresenter, because it is the historical record of what the
- * customer saw and raw JSON in a textarea is unreadable and easy to corrupt. Both columns stay
- * editable, so an inquiry can still be corrected by hand.
+ * customer saw. The item rows therefore keep their own catalog columns, so correcting a quote never
+ * rewrites what was sent.
  *
  * The status is chosen from the four cases of InquiryStatus and is shown as a Czech badge in the
  * table, so the value stays a controlled vocabulary instead of free text.
@@ -73,18 +93,35 @@ class InquiryResource extends Resource
                                 ->description('Interní stav, se kterým pracujete v administraci. Zákazník ho nevidí.')
                                 ->schema($fields['status'])
                                 ->columns(1),
+                            Section::make('Příplatky poptávky')
+                                ->description('Příplatky přiřazené k poptávce. Ceny v pivot tabulce zůstávají tak, jak přišly z poptávky; cenu za kus počítá u každé položky tlačítko „Přepočítat z katalogu“.')
+                                ->schema($fields['surcharges'])
+                                ->columns(1),
                         ])->columnSpan(1),
                         Group::make([
                             Section::make('Vybraná konfigurace')
                                 ->description('Volby z konfigurátoru. Jejich změna ovlivní jen tuto poptávku, katalog dveří zůstává beze změny.')
                                 ->schema($fields['configuration'])
-                                ->columns(1),
+                                ->columns(1)
+                                ->visible(fn (?Inquiry $record): bool => ! self::hasItems($record)),
                             Section::make('Cena')
                                 ->description('Cena uložená u poptávky v Kč. Obě hodnoty jdou ručně upravit, kontrolujte je proto společně.')
                                 ->schema($fields['price'])
-                                ->columns(1),
+                                ->columns(1)
+                                ->visible(fn (?Inquiry $record): bool => ! self::hasItems($record)),
+                            Section::make('Poptávka s více položkami')
+                                ->description('Tato poptávka obsahuje samostatně nakonfigurované položky. Jejich volby, množství a ceny se upravují níže v části „Položky poptávky“; cena poptávky je součtem položek a přepočítá se při každém uložení.')
+                                ->schema([
+                                    Text::make(fn (?Inquiry $record): string => self::itemsSummaryLine($record))
+                                        ->color('gray'),
+                                ])
+                                ->columns(1)
+                                ->visible(fn (?Inquiry $record): bool => self::hasItems($record)),
                         ])->columnSpan(1),
+                        self::itemsSection($fields['items']),
                         self::previewSection($fields['preview']),
+                        self::recapSection(),
+                        self::sentItemsSection(),
                         self::snapshotSection(),
                     ])
                     ->columnSpanFull(),
@@ -135,6 +172,8 @@ class InquiryResource extends Resource
                     ->helperText('Vyberte jeden ze čtyř interních stavů. Volný text se neukládá, aby poptávky zůstaly roztříděné podle stejných pravidel.'),
             ],
             'configuration' => [
+                // The single door view of an inquiry stored before the items existed. For a multi item
+                // request the same selection is edited per item, so these fields are hidden on the page.
                 Select::make('door_model_id')
                     ->label('Model dveří')
                     ->relationship('doorModel', 'name')
@@ -155,6 +194,8 @@ class InquiryResource extends Resource
                     ->relationship('glassType', 'name')
                     ->searchable()
                     ->preload(),
+            ],
+            'surcharges' => [
                 Select::make('surcharges')
                     ->label('Příplatky')
                     ->relationship('surcharges', 'name')
@@ -166,7 +207,7 @@ class InquiryResource extends Resource
             'price' => [
                 TextInput::make('price_without_vat')
                     ->label('Cena bez DPH')
-                    ->helperText('Cena bez DPH v Kč. Ruční úprava nic nepřepočítává, upravte i cenu s DPH.')
+                    ->helperText('Cena bez DPH v Kč. U poptávky bez položek se nic nepřepočítává, upravte i cenu s DPH.')
                     ->numeric()
                     ->inputMode('decimal')
                     ->required()
@@ -198,11 +239,216 @@ class InquiryResource extends Resource
                     ->color('gray')
                     ->visible(fn (?Inquiry $record): bool => self::preview($record) === null),
             ],
+            'items' => [
+                self::itemsRepeater(),
+            ],
         ];
     }
 
     /**
-     * The best available image of the configured door, with the note which image it is.
+     * The separately configured doors of the request: one repeater item each, saved through the `items`
+     * relationship.
+     *
+     * The generated PNG of an item is composed by the browser at submit time and is never recreated
+     * here; the block therefore shows what the catalog offers for the selection the form currently
+     * holds, so a changed selection can not silently keep an unrelated picture. The quantity and the
+     * price per piece are the only numbers the form sends - the line price is recomputed from them.
+     */
+    private static function itemsRepeater(): Repeater
+    {
+        return Repeater::make('items')
+            ->hiddenLabel()
+            ->relationship()
+            ->orderColumn('position')
+            ->maxItems(InquiryItem::MAX_ITEMS_PER_INQUIRY)
+            ->addActionLabel('Přidat položku')
+            ->cloneable()
+            ->collapsible()
+            ->itemLabel(fn (array $state): ?string => self::itemLabel($state))
+            ->mutateRelationshipDataBeforeFillUsing(
+                fn (array $data): array => app(InquiryItemSelectionResolver::class)->withSnapshotSelection($data),
+            )
+            ->extraItemActions([
+                self::recalculateItemAction(),
+            ])
+            ->schema([
+                TextInput::make('name')
+                    ->label('Název položky')
+                    ->required()
+                    ->maxLength(160)
+                    ->columnSpanFull(),
+                TextInput::make('quantity')
+                    ->label('Množství (ks)')
+                    ->helperText('Počet kusů této konfigurace. Nejvýše '.InquiryItem::MAX_QUANTITY_PER_ITEM.' kusů na jednu položku.')
+                    ->numeric()
+                    ->integer()
+                    ->minValue(1)
+                    ->maxValue(InquiryItem::MAX_QUANTITY_PER_ITEM)
+                    ->default(1)
+                    ->required()
+                    ->live(onBlur: true),
+                TextInput::make('unit_price_without_vat')
+                    ->label('Cena za kus bez DPH')
+                    ->helperText('Cena za kus v Kč. Tlačítko „Přepočítat z katalogu“ ji nastaví podle aktuálního ceníku.')
+                    ->numeric()
+                    ->inputMode('decimal')
+                    ->step('0.01')
+                    ->default(0)
+                    ->required()
+                    ->live(onBlur: true),
+                Select::make('door_model_id')
+                    ->label('Model dveří')
+                    ->options(fn (Get $get): array => self::doorModelOptions($get('door_model_id')))
+                    ->searchable()
+                    ->preload()
+                    ->live()
+                    ->required(),
+                Select::make('door_variant_id')
+                    ->label('Varianta dveří')
+                    ->helperText('Nabízejí se pouze varianty zvoleného modelu.')
+                    ->options(fn (Get $get): array => self::doorVariantOptions($get('door_model_id'), $get('door_variant_id')))
+                    ->searchable()
+                    ->preload()
+                    ->live()
+                    ->required()
+                    ->rules([
+                        fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                            $doorModelId = self::intOrNull($get('door_model_id'));
+
+                            if (blank($value) || $doorModelId === null) {
+                                return;
+                            }
+
+                            if (! DoorVariant::query()->whereKey($value)->where('door_model_id', $doorModelId)->exists()) {
+                                $fail('Vybraná varianta nepatří ke zvolenému modelu.');
+                            }
+                        },
+                    ]),
+                Select::make('decor_id')
+                    ->label('Dekor')
+                    ->helperText('Nabízejí se pouze dekory přiřazené zvolenému modelu.')
+                    ->options(fn (Get $get): array => self::decorOptions($get('door_model_id'), $get('decor_id')))
+                    ->searchable()
+                    ->preload()
+                    ->live(),
+                Select::make('glass_type_id')
+                    ->label('Sklo')
+                    ->helperText('Nabízejí se pouze skla přiřazená zvolenému modelu. Varianta bez skla sklo nepoužívá.')
+                    ->options(fn (Get $get): array => self::glassTypeOptions($get('door_model_id'), $get('glass_type_id')))
+                    ->searchable()
+                    ->preload()
+                    ->live(),
+                Text::make(fn (Get $get): string => self::itemTotalsText($get('quantity'), $get('unit_price_without_vat')))
+                    ->color('gray')
+                    ->columnSpanFull(),
+                Image::make(
+                    fn (Get $get): string => self::selectionPreview($get)['url'] ?? '',
+                    fn (Get $get): string => self::selectionPreview($get)['label'] ?? 'Náhled volby',
+                )
+                    ->imageHeight('22rem')
+                    ->columnSpanFull()
+                    ->visible(fn (Get $get): bool => self::selectionPreview($get) !== null),
+                Text::make('Ke zvolené kombinaci není v katalogu žádný obrázek. Vygenerovaný náhled položky vzniká v prohlížeči při odeslání poptávky a v administraci se nepřekresluje.')
+                    ->color('gray')
+                    ->columnSpanFull()
+                    ->visible(fn (Get $get): bool => self::selectionPreview($get) === null),
+            ])
+            ->columns(['default' => 1, 'md' => 2]);
+    }
+
+    /**
+     * Recalculates the price per piece of one item from the current catalog, so a quote can follow a
+     * price change without retyping the numbers. The formula is the one the configurator uses.
+     */
+    private static function recalculateItemAction(): Action
+    {
+        return Action::make('recalculateFromCatalog')
+            ->label('Přepočítat z katalogu')
+            ->icon(Heroicon::OutlinedArrowPath)
+            ->color('gray')
+            ->tooltip('Nastaví cenu za kus podle modelu, varianty, dekoru, skla a příplatků z katalogu.')
+            ->action(function (array $arguments, Repeater $component, InquiryItemBuilder $builder): void {
+                $key = $arguments['item'] ?? null;
+
+                if (! is_string($key)) {
+                    return;
+                }
+
+                $state = $component->getRawItemState($key);
+
+                $unitPrice = $builder->catalogUnitPrice(
+                    self::intOrNull($state['door_model_id'] ?? null),
+                    self::intOrNull($state['door_variant_id'] ?? null),
+                    self::intOrNull($state['decor_id'] ?? null),
+                    self::intOrNull($state['glass_type_id'] ?? null),
+                    self::surchargeIdsOfItem($key),
+                );
+
+                if ($unitPrice === null) {
+                    Notification::make()
+                        ->warning()
+                        ->title('Cenu se nepodařilo spočítat')
+                        ->body('Nejprve vyberte model a variantu dveří, ze kterých se cena počítá.')
+                        ->send();
+
+                    return;
+                }
+
+                $items = $component->getState();
+                $items = is_array($items) ? $items : [];
+                $items[$key] = [...($items[$key] ?? []), 'unit_price_without_vat' => $unitPrice];
+
+                $component->state($items);
+
+                Notification::make()
+                    ->success()
+                    ->title('Cena za kus byla přepočítána z katalogu')
+                    ->body('Cena celkem i rekapitulace poptávky se přepočítají při uložení.')
+                    ->send();
+            });
+    }
+
+    /**
+     * The surcharges of one item, taken from the snapshot of an already stored item.
+     *
+     * The pivot table holds the surcharges of the whole inquiry, so the item keeps its own ones in the
+     * snapshot. A pending item has none yet, which is why the recalculation of a new item prices the
+     * catalog selection only.
+     *
+     * @return list<int>
+     */
+    private static function surchargeIdsOfItem(string $itemKey): array
+    {
+        if (! str_starts_with($itemKey, 'record-')) {
+            return [];
+        }
+
+        $item = InquiryItem::query()->find((int) substr($itemKey, strlen('record-')));
+
+        return $item instanceof InquiryItem ? $item->snapshotSurchargeIds() : [];
+    }
+
+    /**
+     * The heading of one repeater item: the name the workshop gave it, otherwise the catalog label of
+     * the selection it holds.
+     *
+     * @param  array<string, mixed>  $state
+     */
+    private static function itemLabel(array $state): ?string
+    {
+        $name = trim((string) ($state['name'] ?? ''));
+
+        if ($name !== '') {
+            return $name;
+        }
+
+        $quantity = is_numeric($state['quantity'] ?? null) ? (int) $state['quantity'] : 1;
+
+        return 'Nová položka ('.$quantity.' ks)';
+    }
+
+    /**
+     * The single door image of the inquiry, which describes its first item for a multi item request.
      *
      * @param  list<Component>  $components
      */
@@ -212,11 +458,17 @@ class InquiryResource extends Resource
             ->description('Konfigurátor složí při odeslání poptávky zvolené dveře do jednoho obrázku (rám, křídlo, dekor, sklo a overlaye, bez místnosti a bez osobních údajů) a obrázek se uloží k poptávce. Zobrazuje se přednostně; starší poptávky bez vygenerovaného obrázku spadají na referenční obrázek varianty, jinak na náhled modelu, dekoru nebo skla.')
             ->schema($components)
             ->columns(1)
-            ->columnSpanFull();
+            ->columnSpanFull()
+            ->visible(fn (?Inquiry $record): bool => ! self::hasItems($record));
     }
 
     /**
      * The read only snapshot of the configuration as it was sent from the configurator.
+     *
+     * It is hidden for a request whose snapshot already lists its items, because those are described
+     * one by one in the "Odeslané položky" section. An inquiry stored before the items existed keeps
+     * this view, even after the workshop added items to it: the snapshot still describes the single door
+     * the customer sent.
      */
     private static function snapshotSection(): Section
     {
@@ -225,7 +477,60 @@ class InquiryResource extends Resource
             ->schema(fn (?Inquiry $record): array => self::snapshotLines($record))
             ->collapsible()
             ->columns(1)
+            ->columnSpanFull()
+            ->visible(fn (?Inquiry $record): bool => ! self::hasItems($record) || ! self::snapshotListsItems($record));
+    }
+
+    /**
+     * True when the stored snapshot describes the whole request as a list of items, which is the shape
+     * the configurator writes since an inquiry may carry several doors.
+     */
+    private static function snapshotListsItems(?Inquiry $record): bool
+    {
+        $configuration = $record?->configuration;
+
+        return is_array($configuration) && is_array($configuration['items'] ?? null);
+    }
+
+    /**
+     * The editable doors of the request.
+     *
+     * @param  list<Component>  $components
+     */
+    private static function itemsSection(array $components): Section
+    {
+        return Section::make('Položky poptávky')
+            ->description('Každá položka je samostatně nakonfigurované dveře s vlastním názvem, množstvím a cenou za kus. Cena celkem je cena za kus násobená množstvím a při uložení se z položek přepočítá i cena celé poptávky. Snapshot z odeslání zůstává nedotčený.')
+            ->schema($components)
+            ->columns(1)
             ->columnSpanFull();
+    }
+
+    /**
+     * The recap of the whole request: the number of doors and the three price levels.
+     */
+    private static function recapSection(): Section
+    {
+        return Section::make('Rekapitulace poptávky')
+            ->description('Součet všech položek: celkový počet dveří a cena bez DPH, DPH a cena s DPH. Uloží se při každém uložení poptávky, ručně se needituje.')
+            ->schema(fn (?Inquiry $record): array => self::recapBlocks($record))
+            ->columns(1)
+            ->columnSpanFull();
+    }
+
+    /**
+     * The doors of the request as they were sent, with the snapshot and the generated image of each
+     * item. Nothing here is editable; it is the record the customer saw.
+     */
+    private static function sentItemsSection(): Section
+    {
+        return Section::make('Odeslané položky')
+            ->description('Co zákazník odeslal: název, množství, ceny a volby jednotlivých položek v okamžiku odeslání, včetně vygenerovaného náhledu. Slouží k porovnání s aktuálně uloženou úpravou výše.')
+            ->schema(fn (?Inquiry $record): array => self::itemBlocks($record))
+            ->collapsible()
+            ->columns(1)
+            ->columnSpanFull()
+            ->visible(fn (?Inquiry $record): bool => self::hasItems($record));
     }
 
     /**
@@ -241,16 +546,153 @@ class InquiryResource extends Resource
             ];
         }
 
-        return [
-            Grid::make(['default' => 1, 'md' => 2])
-                ->schema(array_map(
-                    fn (array $line): Group => Group::make([
-                        Text::make($line['label'])->color('gray'),
-                        Text::make($line['value']),
-                    ]),
-                    $lines,
-                )),
-        ];
+        return [self::linesGrid($lines)];
+    }
+
+    /**
+     * @return array<int, Component>
+     */
+    private static function itemBlocks(?Inquiry $record): array
+    {
+        if ($record === null) {
+            return [
+                Text::make('Položky se zobrazí po uložení poptávky.'),
+            ];
+        }
+
+        $items = $record->items;
+
+        if ($items->isEmpty()) {
+            return [
+                Text::make('Poptávka obsahuje jednu položku z dřívější verze konfigurátoru. Její konfiguraci a ceny najdete níže v uloženém snapshotu.')
+                    ->color('gray'),
+            ];
+        }
+
+        $presenter = app(InquirySnapshotPresenter::class);
+        $resolver = app(InquiryPreviewResolver::class);
+        $blocks = [];
+
+        foreach ($items->values() as $index => $item) {
+            if (! $item instanceof InquiryItem) {
+                continue;
+            }
+
+            $preview = $resolver->resolveItem($item);
+            $snapshot = $item->snapshot();
+
+            $blocks[] = Group::make([
+                Text::make(($index + 1).'. '.$item->name)
+                    ->badge()
+                    ->color('primary'),
+                self::linesGrid($presenter->itemPriceLines($snapshot)),
+                self::linesGrid($presenter->itemLines($snapshot)),
+                Image::make(
+                    fn (): string => $preview['url'] ?? '',
+                    fn (): string => $preview['label'] ?? 'Náhled položky',
+                )
+                    ->imageHeight('22rem')
+                    ->visible(fn (): bool => $preview !== null),
+                Text::make('K této položce není uložený vygenerovaný náhled.')
+                    ->color('gray')
+                    ->visible(fn (): bool => $preview === null),
+            ]);
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @return array<int, Component>
+     */
+    private static function recapBlocks(?Inquiry $record): array
+    {
+        if ($record === null) {
+            return [
+                Text::make('Rekapitulace se zobrazí po uložení poptávky.'),
+            ];
+        }
+
+        $presenter = app(InquirySnapshotPresenter::class);
+        $blocks = [];
+
+        if (self::hasItems($record)) {
+            $blocks[] = Text::make('Součet položek, který se uloží do ceny poptávky')
+                ->color('gray');
+            $blocks[] = self::linesGrid($presenter->totalsLines(app(InquiryTotalsCalculator::class)->summary($record)));
+        }
+
+        $sentLines = $presenter->summaryLines($record->configuration);
+
+        if ($sentLines !== []) {
+            $blocks[] = Text::make('Rekapitulace, kterou viděl zákazník v konfigurátoru')
+                ->color('gray');
+            $blocks[] = self::linesGrid($sentLines);
+        }
+
+        if ($blocks === []) {
+            // An inquiry stored without a snapshot has no recap to show. The editable price columns stay
+            // the source of truth, so only the number of doors is added from the stored items.
+            return [
+                Text::make('Celkem dveří: '.$record->totalDoors().' ks'),
+                Text::make('Poptávka nemá uloženou rekapitulaci. Ceny najdete výše v části Cena.')
+                    ->color('gray'),
+            ];
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * A two column grid of label and value pairs, shared by every read only block of the record.
+     *
+     * @param  list<array{label: string, value: string}>  $lines
+     */
+    private static function linesGrid(array $lines): Component
+    {
+        if ($lines === []) {
+            return Text::make('Snapshot není uložený.')
+                ->color('gray');
+        }
+
+        return Grid::make(['default' => 1, 'md' => 2])
+            ->schema(array_map(
+                fn (array $line): Group => Group::make([
+                    Text::make($line['label'])->color('gray'),
+                    Text::make($line['value']),
+                ]),
+                $lines,
+            ));
+    }
+
+    /**
+     * The number of items and doors of the request, used by the note that replaces the single door
+     * fields of a multi item inquiry.
+     */
+    private static function itemsSummaryLine(?Inquiry $record): string
+    {
+        if ($record === null) {
+            return '';
+        }
+
+        $record->loadMissing('items');
+
+        return $record->items->count().' položek · '.$record->totalDoors().' ks dveří. Konfiguraci, množství a ceny upravte níže.';
+    }
+
+    /**
+     * True when the request is described by item rows. An inquiry sent before the items existed has no
+     * rows here and keeps the single door view with its own price fields.
+     */
+    private static function hasItems(?Inquiry $record): bool
+    {
+        if (! $record instanceof Inquiry) {
+            return false;
+        }
+
+        $record->loadMissing('items');
+
+        return $record->items->isNotEmpty();
     }
 
     /**
@@ -259,6 +701,21 @@ class InquiryResource extends Resource
     private static function preview(?Inquiry $record): ?array
     {
         return app(InquiryPreviewResolver::class)->resolve($record);
+    }
+
+    /**
+     * The catalog image of the selection one repeater item currently holds.
+     *
+     * @return array{url: string, label: string, caption: string}|null
+     */
+    private static function selectionPreview(Get $get): ?array
+    {
+        return app(InquiryPreviewResolver::class)->resolveSelection(
+            self::intOrNull($get('door_model_id')),
+            self::intOrNull($get('door_variant_id')),
+            self::intOrNull($get('decor_id')),
+            self::intOrNull($get('glass_type_id')),
+        );
     }
 
     private static function previewCaption(?Inquiry $record): string
@@ -270,6 +727,141 @@ class InquiryResource extends Resource
         }
 
         return 'Zobrazeno: '.$preview['label'].'. '.$preview['caption'];
+    }
+
+    /**
+     * The line prices of one edited item, computed the same way the totals calculator does, so the
+     * effect of a quantity change is visible before the inquiry is saved.
+     */
+    private static function itemTotalsText(mixed $quantity, mixed $unitPriceWithoutVat): string
+    {
+        if (! is_numeric($quantity) || ! is_numeric($unitPriceWithoutVat)) {
+            return 'Cena celkem se dopočítá ze zadaného množství a ceny za kus při uložení.';
+        }
+
+        $linePriceWithoutVat = round((float) $unitPriceWithoutVat * (int) $quantity, 2);
+
+        return 'Cena celkem bez DPH '.self::money($linePriceWithoutVat)
+            .' · s DPH '.self::money(VatCalculator::applyRate($linePriceWithoutVat));
+    }
+
+    private static function money(float $amount): string
+    {
+        return number_format($amount, 2, ',', ' ').' Kč';
+    }
+
+    /**
+     * Models offered by the catalog, including the stored one so a model that was taken out of the
+     * offer does not make an old inquiry impossible to save.
+     *
+     * @return array<int, string>
+     */
+    private static function doorModelOptions(mixed $currentId): array
+    {
+        $options = DoorModel::query()->orderBy('name')->pluck('name', 'id')->all();
+        $currentId = self::intOrNull($currentId);
+
+        if ($currentId === null || array_key_exists($currentId, $options)) {
+            return $options;
+        }
+
+        $current = DoorModel::query()->find($currentId);
+
+        return $current === null
+            ? $options
+            : [$currentId => $current->name.' (mimo aktuální nabídku)'] + $options;
+    }
+
+    /**
+     * Variants of the chosen model. The constraint mirrors InquiryItemBuilder, so a pair that the
+     * configurator would refuse can not be stored by the administration either.
+     *
+     * @return array<int, string>
+     */
+    private static function doorVariantOptions(mixed $doorModelId, mixed $currentId): array
+    {
+        $doorModelId = self::intOrNull($doorModelId);
+        $currentId = self::intOrNull($currentId);
+
+        // Without a model the select offers the whole catalog, otherwise the options of a stored variant
+        // would lose their label before a model is picked. The pair itself is checked by the rule on the
+        // field, so a variant of another model can not be saved.
+        $options = DoorVariant::query()
+            ->when($doorModelId !== null, fn ($query) => $query->where('door_model_id', $doorModelId))
+            ->orderBy('code')
+            ->pluck('code', 'id')
+            ->all();
+
+        return self::withCurrentOption($options, $currentId, fn (): ?string => DoorVariant::query()->find($currentId)?->code);
+    }
+
+    /**
+     * Active decors of the chosen model, plus the stored one.
+     *
+     * @return array<int, string>
+     */
+    private static function decorOptions(mixed $doorModelId, mixed $currentId): array
+    {
+        $doorModelId = self::intOrNull($doorModelId);
+        $currentId = self::intOrNull($currentId);
+
+        $options = $doorModelId === null
+            ? Decor::query()->where('active', true)->orderBy('name')->pluck('name', 'id')->all()
+            : Decor::query()
+                ->where('active', true)
+                ->whereHas('doorModels', fn ($query) => $query->whereKey($doorModelId))
+                ->orderBy('name')
+                ->pluck('name', 'id')
+                ->all();
+
+        return self::withCurrentOption($options, $currentId, fn (): ?string => Decor::query()->find($currentId)?->name);
+    }
+
+    /**
+     * Active glass types of the chosen model, plus the stored one.
+     *
+     * @return array<int, string>
+     */
+    private static function glassTypeOptions(mixed $doorModelId, mixed $currentId): array
+    {
+        $doorModelId = self::intOrNull($doorModelId);
+        $currentId = self::intOrNull($currentId);
+
+        $options = $doorModelId === null
+            ? GlassType::query()->where('active', true)->orderBy('name')->pluck('name', 'id')->all()
+            : GlassType::query()
+                ->where('active', true)
+                ->whereHas('doorModels', fn ($query) => $query->whereKey($doorModelId))
+                ->orderBy('name')
+                ->pluck('name', 'id')
+                ->all();
+
+        return self::withCurrentOption($options, $currentId, fn (): ?string => GlassType::query()->find($currentId)?->name);
+    }
+
+    /**
+     * Keeps a stored value selectable even when the catalog no longer offers it, so changing the offer
+     * never turns an old inquiry into a form that refuses to save.
+     *
+     * @param  array<int, string>  $options
+     * @return array<int, string>
+     */
+    private static function withCurrentOption(array $options, ?int $currentId, Closure $currentLabel): array
+    {
+        if ($currentId === null || array_key_exists($currentId, $options)) {
+            return $options;
+        }
+
+        $label = $currentLabel();
+
+        return $label === null
+            ? $options
+            : [$currentId => $label.' (mimo aktuální nabídku)'] + $options;
+    }
+
+    private static function intOrNull(mixed $value): ?int
+    {
+        return is_numeric($value) ? (int) $value : null;
     }
 
     private static function computedTotals(?Inquiry $record): ?string
@@ -314,12 +906,14 @@ class InquiryResource extends Resource
                     ->label('E-mail')
                     ->searchable()
                     ->sortable(),
+                // The columns of the inquiry still describe the first item of a multi item request, so
+                // the label says which door the value belongs to.
                 TextColumn::make('doorModel.name')
-                    ->label('Model dveří')
+                    ->label('Model dveří (1. položka)')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('doorVariant.code')
-                    ->label('Varianta')
+                    ->label('Varianta (1. položka)')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('status')

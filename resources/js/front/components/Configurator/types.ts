@@ -98,3 +98,56 @@ export interface DoorModel {
   glasses: GlassOption[]
   surcharges: SurchargeOption[]
 }
+
+/**
+ * The limits the inquiry endpoint enforces. The browser mirrors them, so the visitor is stopped before
+ * a request is built that the server would refuse anyway.
+ */
+export interface ConfiguratorLimits {
+  max_items: number
+  max_quantity_per_item: number
+}
+
+/**
+ * One configured door of the request, kept in the browser until the inquiry is sent.
+ *
+ * The catalog lookups (`variant`, `decor`, `glass`, `surcharges`) are frozen copies of the option the
+ * visitor picked: the PNG is composed from them right before submitting, so a draft must keep working
+ * even after the visitor starts another configuration. The server never trusts any of this. It prices
+ * the ids on its own and only stores the uploaded PNG.
+ */
+export interface InquiryItemDraft {
+  /** Local identity of the row, so it can be edited and removed without losing the selection. */
+  uid: string
+  name: string
+  quantity: number
+  door_model_id: number
+  door_variant_id: number
+  decor_id: number | null
+  glass_type_id: number | null
+  surcharge_ids: number[]
+  model_name: string
+  variant_label: string
+  variant: DoorVariant | null
+  decor: DecorOption | null
+  glass: GlassOption | null
+  surcharges: SurchargeOption[]
+  unit_price_without_vat: number
+}
+
+/**
+ * One item exactly as the inquiry endpoint expects it in the `items` multipart field.
+ *
+ * A field is omitted rather than sent as `null`: the multipart builder of Inertia would append the
+ * string "null" for a null value, which the `exists` and `file` rules would then refuse.
+ */
+export interface InquiryItemPayload {
+  name: string
+  quantity: number
+  door_model_id: number
+  door_variant_id: number
+  decor_id?: number
+  glass_type_id?: number
+  surcharge_ids: number[]
+  door_preview?: File
+}

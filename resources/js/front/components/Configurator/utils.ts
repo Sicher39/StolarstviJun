@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'vue'
 
-import type { DoorVariant } from './types'
+import type { DoorVariant, GlassOption, InquiryItemDraft } from './types'
 
 const CURRENCY_LABEL = 'Kč'
 
@@ -49,6 +49,74 @@ export const formatVariantCount = (count: number): string => {
   }
 
   return `${count} variant`
+}
+
+// The same rule for the doors of a request: 1 kus, 2–4 kusy, otherwise kusů.
+export const formatPieceCount = (count: number): string => {
+  if (count === 1) {
+    return `${count} kus`
+  }
+
+  if (count >= 2 && count <= 4) {
+    return `${count} kusy`
+  }
+
+  return `${count} kusů`
+}
+
+// And for the items of the request: 1 položka, 2–4 položky, otherwise položek.
+export const formatItemCount = (count: number): string => {
+  if (count === 1) {
+    return `${count} položka`
+  }
+
+  if (count >= 2 && count <= 4) {
+    return `${count} položky`
+  }
+
+  return `${count} položek`
+}
+
+// The line price is what the customer pays for the item, the unit price is only one door of it. Both are
+// rounded to the haléř on the client as well, so the cart of the browser never shows a 0.01 difference
+// against the recap of the server.
+export const itemLineTotal = (item: Pick<InquiryItemDraft, 'quantity' | 'unit_price_without_vat'>): number => {
+  return Math.round(item.quantity * item.unit_price_without_vat * 100) / 100
+}
+
+export const sumQuantities = (items: Pick<InquiryItemDraft, 'quantity'>[]): number => {
+  return items.reduce((total, item) => total + item.quantity, 0)
+}
+
+export const sumPriceWithoutVat = (items: InquiryItemDraft[]): number => {
+  return Math.round(items.reduce((total, item) => total + itemLineTotal(item), 0) * 100) / 100
+}
+
+// The label of the item is derived from the selection until the visitor types their own name.
+export const defaultItemName = (modelName: string | null, variantCode: string | null): string => {
+  return [modelName, variantCode].filter((part): part is string => Boolean(part)).join(' · ')
+}
+
+// The door canvas used when a variant has not published its own size. The live preview and the composed
+// PNG fall back to the same numbers, so every door on the page keeps the same proportions.
+const DOOR_CANVAS_FALLBACK_WIDTH = 426
+const DOOR_CANVAS_FALLBACK_HEIGHT = 900
+
+export const doorCanvasSize = (variant: DoorVariant | null): { width: number; height: number } => {
+  const width = variant?.canvas_width ?? 0
+  const height = variant?.canvas_height ?? 0
+
+  return {
+    width: width > 0 ? width : DOOR_CANVAS_FALLBACK_WIDTH,
+    height: height > 0 ? height : DOOR_CANVAS_FALLBACK_HEIGHT,
+  }
+}
+
+// The glass texture is faded by the opacity of the glass type; the `DoorPreview` does the same.
+export const glassOpacityFraction = (glass: GlassOption | null): number => {
+  const opacity = glass?.opacity
+
+  return typeof opacity === 'number' && !Number.isNaN(opacity) ? Math.min(Math.max(opacity / 100, 0), 1) : 1
 }
 
 export const swatchStyle = (url: string | null, type: 'decor' | 'glass'): CSSProperties => {

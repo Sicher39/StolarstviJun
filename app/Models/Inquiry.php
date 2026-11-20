@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
@@ -79,6 +80,20 @@ class Inquiry extends Model implements HasMedia
             ->withTimestamps();
     }
 
+    /**
+     * The separately configured doors of the request, in the order the customer built them.
+     *
+     * An inquiry sent before the items existed has no rows here: its single door is described by the
+     * `door_model_id`, `door_variant_id`, `decor_id` and `glass_type_id` columns and by the
+     * `configuration` snapshot, so every reader has to keep a fallback for the empty relation.
+     */
+    public function items(): HasMany
+    {
+        return $this->hasMany(InquiryItem::class)
+            ->orderBy('position')
+            ->orderBy('id');
+    }
+
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection(self::PREVIEW_COLLECTION)
@@ -87,6 +102,21 @@ class Inquiry extends Model implements HasMedia
             // only mean a tampered request and is refused by the media library as well.
             ->acceptsMimeTypes(['image/png'])
             ->singleFile();
+    }
+
+    /**
+     * How many doors the request describes: the sum of the item quantities, or one for an inquiry
+     * stored before the items existed (the old configurator had no quantity at all).
+     */
+    public function totalDoors(): int
+    {
+        $items = $this->relationLoaded('items') ? $this->items : $this->items()->get();
+
+        if ($items->isEmpty()) {
+            return 1;
+        }
+
+        return (int) $items->sum(fn (InquiryItem $item): int => $item->quantity);
     }
 
     /**

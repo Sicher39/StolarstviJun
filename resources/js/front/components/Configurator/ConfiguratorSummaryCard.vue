@@ -1,15 +1,10 @@
 <script setup lang="ts">
-import { formatPrice, formatVatRate } from './utils'
-
 defineProps<{
   selectedModelName: string | null
   selectedVariantLabel: string | null
   selectedDecorName: string | null
   selectedGlassName: string | null
   selectedSurchargeNames: string[]
-  priceWithoutVat: number
-  priceWithVat: number
-  vatRate: number
 }>()
 </script>
 
@@ -37,13 +32,6 @@ defineProps<{
           {{ selectedSurchargeNames.length ? selectedSurchargeNames.join(', ') : 'Bez příplatků' }}
         </span>
       </div>
-    </div>
-
-    <div class="mt-8 border border-accent/30 bg-accent/10 p-5">
-      <p class="text-accent uppercase tracking-[0.2em] text-xs">Orientační cena s DPH</p>
-      <p class="mt-3 text-white text-3xl">{{ formatPrice(priceWithVat) }}</p>
-      <p class="mt-2 text-white/70 text-xs">{{ formatPrice(priceWithoutVat) }} bez DPH</p>
-      <p class="mt-1 text-white/45 text-xs">Sazba DPH {{ formatVatRate(vatRate) }} %</p>
     </div>
   </div>
 </template>
