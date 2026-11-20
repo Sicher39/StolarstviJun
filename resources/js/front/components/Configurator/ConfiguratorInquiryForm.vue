@@ -15,6 +15,8 @@ const props = defineProps<{
   form: InquiryFormShape
   flashSuccess: string
   canSubmitInquiry: boolean
+  // Why the request can not be sent yet (no saved item, a pending edit). Empty while sending is possible.
+  blockedReason: string
   // True while the browser composes the PNG of the chosen door, which happens right before the request.
   isPreparingPreview: boolean
   // Set when that composition failed: the message explains why nothing was sent.
@@ -140,6 +142,17 @@ const privacyPolicyUrl = computed((): string => route('front.gdpr'))
 
         <p v-if="form.errors.door_preview" class="mt-3 text-sm text-red-300">
           {{ form.errors.door_preview }}
+        </p>
+
+        <!-- An empty request would be refused by the endpoint, so the reason is stated next to the button
+             instead of leaving a disabled control without an explanation. The sentence names the control that
+             saves the configuration, so no second copy of that button is needed here. -->
+        <p
+          v-if="!canSubmitInquiry && blockedReason"
+          class="mt-3 border border-white/15 bg-white/5 p-3 text-sm leading-relaxed text-white/70"
+          role="status"
+        >
+          {{ blockedReason }}
         </p>
       </div>
 

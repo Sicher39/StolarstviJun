@@ -132,6 +132,12 @@ export interface InquiryItemDraft {
   decor: DecorOption | null
   glass: GlassOption | null
   surcharges: SurchargeOption[]
+  /**
+   * The base price of the configured model. It anchors the price breakdown of the item, because every other
+   * part of the price (the variant, the decor, the glass and the surcharges) is stored on the frozen option
+   * the visitor picked.
+   */
+  base_price_without_vat: number
   unit_price_without_vat: number
 }
 

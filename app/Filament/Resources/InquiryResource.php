@@ -508,11 +508,14 @@ class InquiryResource extends Resource
 
     /**
      * The recap of the whole request: the number of doors and the three price levels.
+     *
+     * The sum is shown next to the recap the customer saw, and the price of every single item is explained
+     * in the "Odeslané položky" section below, so a higher total always has a visible cause.
      */
     private static function recapSection(): Section
     {
         return Section::make('Rekapitulace poptávky')
-            ->description('Součet všech položek: celkový počet dveří a cena bez DPH, DPH a cena s DPH. Uloží se při každém uložení poptávky, ručně se needituje.')
+            ->description('Součet všech položek: celkový počet dveří a cena bez DPH, DPH a cena s DPH. Uloží se při každém uložení poptávky, ručně se needituje. Rozpis ceny jednotlivých položek je níže v části „Odeslané položky“.')
             ->schema(fn (?Inquiry $record): array => self::recapBlocks($record))
             ->columns(1)
             ->columnSpanFull();
@@ -525,7 +528,7 @@ class InquiryResource extends Resource
     private static function sentItemsSection(): Section
     {
         return Section::make('Odeslané položky')
-            ->description('Co zákazník odeslal: název, množství, ceny a volby jednotlivých položek v okamžiku odeslání, včetně vygenerovaného náhledu. Slouží k porovnání s aktuálně uloženou úpravou výše.')
+            ->description('Co zákazník odeslal: rozpis ceny za kus, množství, ceny a volby jednotlivých položek v okamžiku odeslání, včetně vygenerovaného náhledu. Snapshot se nikdy nepřepisuje, takže slouží k porovnání s aktuálně uloženou úpravou výše.')
             ->schema(fn (?Inquiry $record): array => self::itemBlocks($record))
             ->collapsible()
             ->columns(1)
@@ -580,12 +583,28 @@ class InquiryResource extends Resource
 
             $preview = $resolver->resolveItem($item);
             $snapshot = $item->snapshot();
+            // The stored row may already carry a recalculated price; the snapshot stays the record of what
+            // the customer was quoted, so the two views are printed one after another and never merged.
+            $priceComparison = $presenter->storedPriceComparison($snapshot, [
+                'quantity' => $item->quantity,
+                'unit_price_without_vat' => $item->unit_price_without_vat,
+                'price_without_vat' => $item->price_without_vat,
+                'price_with_vat' => $item->price_with_vat,
+            ]);
 
             $blocks[] = Group::make([
                 Text::make(($index + 1).'. '.$item->name)
                     ->badge()
                     ->color('primary'),
+                Text::make('Rozpis ceny za kus při odeslání (bez DPH)')
+                    ->color('gray'),
+                self::linesGrid($presenter->priceBreakdownLines($snapshot)),
                 self::linesGrid($presenter->itemPriceLines($snapshot)),
+                Text::make(fn (): ?string => $priceComparison)
+                    ->color('warning')
+                    ->visible(fn (): bool => $priceComparison !== null),
+                Text::make('Volby při odeslání')
+                    ->color('gray'),
                 self::linesGrid($presenter->itemLines($snapshot)),
                 Image::make(
                     fn (): string => $preview['url'] ?? '',

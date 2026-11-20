@@ -91,6 +91,9 @@ class ConfiguratorInquiryController extends Controller
             'decor' => $itemSnapshots[0]['decor'],
             'glass_type' => $itemSnapshots[0]['glass_type'],
             'surcharges' => $itemSnapshots[0]['surcharges'],
+            // The breakdown of the first door travels with the same view, so the price in the single door
+            // section of the administration is explained by the amounts that were charged.
+            'price_breakdown' => $itemSnapshots[0]['price_breakdown'],
             'totals' => [
                 'price_without_vat' => $summary['price_without_vat'],
                 'price_with_vat' => $summary['price_with_vat'],

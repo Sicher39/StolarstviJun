@@ -5,7 +5,8 @@ import type { InquiryItemDraft } from './types'
 import { formatPieceCount, formatPrice, formatVatRate, priceWithVat as calculatePriceWithVat, sumPriceWithoutVat, sumQuantities } from './utils'
 
 const props = defineProps<{
-  // Every item of the request, including the configuration that is being built right now.
+  // Only the items the visitor saved into the request. The configuration that is being built right now is
+  // deliberately left out, so the recap always equals what will be sent.
   items: InquiryItemDraft[]
   vatRate: number
 }>()
@@ -20,6 +21,11 @@ const vatAmount = computed((): number => Math.round((priceWithVat.value - priceW
 <template>
   <div class="border border-white/10 bg-dark/40 p-6">
     <p class="text-white/50 uppercase text-xs tracking-[0.2em]">Rekapitulace poptávky</p>
+
+    <p v-if="!items.length" class="mt-3 text-white/45 text-xs leading-relaxed">
+      Rekapitulace obsahuje jen položky uložené do poptávky. Rozpracovaná konfigurace se do ní promítne až po
+      uložení.
+    </p>
 
     <div class="mt-4 space-y-3 text-sm text-white/70">
       <p class="flex items-center justify-between gap-4 border-b border-white/10 pb-3">

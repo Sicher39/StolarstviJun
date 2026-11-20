@@ -28,6 +28,10 @@ use Illuminate\Validation\ValidationException;
  *
  * and the line price is that amount times the quantity. VAT is applied to the rounded line price, so
  * the sum of the items always equals the recap of the inquiry to the cent.
+ *
+ * The same parts are stored in the snapshot as `price_breakdown`, together with their names and amounts.
+ * That is what lets the configurator and the administration explain a higher price per piece ("the glass
+ * adds 300 Kč") without reading the catalog of today, which may have changed in the meantime.
  */
 class InquiryItemBuilder
 {
@@ -85,7 +89,8 @@ class InquiryItemBuilder
 
         $quantity = $this->quantity($selection['quantity'] ?? 1);
 
-        $unitPriceWithoutVat = $this->unitPrice($doorModel, $doorVariant, $decor, $glassType, $surcharges);
+        $priceParts = $this->priceParts($doorModel, $doorVariant, $decor, $glassType, $surcharges);
+        $unitPriceWithoutVat = $this->unitPrice($priceParts);
 
         $priceWithoutVat = round($unitPriceWithoutVat * $quantity, 2);
         $priceWithVat = VatCalculator::applyRate($priceWithoutVat);
@@ -95,6 +100,14 @@ class InquiryItemBuilder
             // stores the items as plain arrays, so they stay readable without joining the item rows.
             'name' => $this->name($selection['name'] ?? null, $doorModel, $doorVariant),
             'quantity' => $quantity,
+            // The exact composition of the price per piece: the base price of the model and every part that
+            // was added to it, with the name and the amount that were valid when the inquiry was sent.
+            'price_breakdown' => [
+                'vat_rate' => VatCalculator::rate(),
+                'unit_price_without_vat' => $unitPriceWithoutVat,
+                'unit_price_with_vat' => VatCalculator::applyRate($unitPriceWithoutVat),
+                'lines' => $priceParts,
+            ],
             'door_model' => [
                 'id' => $doorModel->id,
                 'name' => $doorModel->name,
@@ -221,29 +234,88 @@ class InquiryItemBuilder
             ? collect()
             : $doorModel->surcharges()->whereIn('surcharges.id', $surchargeIds)->get();
 
-        return $this->unitPrice($doorModel, $doorVariant, $decor, $glassType, $surcharges);
+        return $this->unitPrice($this->priceParts($doorModel, $doorVariant, $decor, $glassType, $surcharges));
     }
 
     /**
-     * The documented price of one piece, rounded to the cent.
+     * The priced parts of one piece, in the order the documented formula adds them up.
+     *
+     * Each part carries the name and the code of the catalog entry it was read from, so the snapshot
+     * describes the composition of the price on its own, without a join to the catalog and without the
+     * risk that a later change of a name rewrites what the customer saw.
+     *
+     * A part is kept even when its amount is zero: the snapshot records that the customer selected the
+     * option, while the presentation decides whether a zero amount is worth showing. The variant is
+     * always part of the price, the decor, the glass and the surcharges only when they were selected.
      *
      * @param  Collection<int, Surcharge>  $surcharges
+     * @return list<array{key: string, label: string, name: string|null, code: string|null, amount_without_vat: float}>
      */
-    private function unitPrice(
+    private function priceParts(
         DoorModel $doorModel,
         DoorVariant $doorVariant,
         ?Decor $decor,
         ?GlassType $glassType,
         Collection $surcharges,
-    ): float {
-        return round(
-            (float) $doorModel->base_price_without_vat
-                + (float) $doorVariant->price_modifier
-                + (float) ($decor?->price_modifier ?? 0)
-                + (float) ($glassType?->price_modifier ?? 0)
-                + $surcharges->sum(fn (Surcharge $surcharge): float => (float) $surcharge->price_without_vat),
-            2,
-        );
+    ): array {
+        $parts = [
+            [
+                'key' => 'base_price',
+                'label' => 'Základní cena dveří',
+                'name' => null,
+                'code' => null,
+                'amount_without_vat' => (float) $doorModel->base_price_without_vat,
+            ],
+            [
+                'key' => 'door_variant',
+                'label' => 'Varianta',
+                'name' => $doorVariant->code,
+                'code' => $doorVariant->code,
+                'amount_without_vat' => (float) $doorVariant->price_modifier,
+            ],
+        ];
+
+        if ($decor) {
+            $parts[] = [
+                'key' => 'decor',
+                'label' => 'Dekor',
+                'name' => $decor->name,
+                'code' => $decor->code,
+                'amount_without_vat' => (float) $decor->price_modifier,
+            ];
+        }
+
+        if ($glassType) {
+            $parts[] = [
+                'key' => 'glass_type',
+                'label' => 'Sklo',
+                'name' => $glassType->name,
+                'code' => $glassType->code,
+                'amount_without_vat' => (float) $glassType->price_modifier,
+            ];
+        }
+
+        foreach ($surcharges as $surcharge) {
+            $parts[] = [
+                'key' => 'surcharge',
+                'label' => 'Příplatek',
+                'name' => $surcharge->name,
+                'code' => $surcharge->code,
+                'amount_without_vat' => (float) $surcharge->price_without_vat,
+            ];
+        }
+
+        return $parts;
+    }
+
+    /**
+     * The documented price of one piece, rounded to the cent.
+     *
+     * @param  list<array{amount_without_vat: float}>  $priceParts
+     */
+    private function unitPrice(array $priceParts): float
+    {
+        return round(array_sum(array_column($priceParts, 'amount_without_vat')), 2);
     }
 
     /**

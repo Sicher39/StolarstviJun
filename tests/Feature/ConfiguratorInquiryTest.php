@@ -335,6 +335,34 @@ class ConfiguratorInquiryTest extends TestCase
         $this->assertEquals(2700.0, (float) $items[1]->price_without_vat);
         $this->assertEquals(3267.0, (float) $items[1]->price_with_vat);
 
+        // The snapshot of every item keeps the exact breakdown of the price per piece that was charged, with
+        // the names and the amounts of the catalog at the time of the inquiry.
+        $firstBreakdown = $items[0]->snapshot()['price_breakdown'];
+
+        $this->assertEquals(1550.0, (float) $firstBreakdown['unit_price_without_vat']);
+        $this->assertEquals(1875.5, (float) $firstBreakdown['unit_price_with_vat']);
+        $this->assertSame(
+            ['base_price', 'door_variant', 'decor', 'glass_type', 'surcharge'],
+            array_column($firstBreakdown['lines'], 'key'),
+        );
+        $this->assertSame([1000.0, 200.0, 100.0, 200.0, 50.0], array_map(
+            fn (array $line): float => (float) $line['amount_without_vat'],
+            $firstBreakdown['lines'],
+        ));
+        $this->assertSame($variant->code, $firstBreakdown['lines'][1]['code']);
+        $this->assertSame($decor->name, $firstBreakdown['lines'][2]['name']);
+        $this->assertSame($glassType->name, $firstBreakdown['lines'][3]['name']);
+        $this->assertSame($surcharge->name, $firstBreakdown['lines'][4]['name']);
+
+        // The second item was sent without glass, so its breakdown has no glass line at all.
+        $secondBreakdown = $items[1]->snapshot()['price_breakdown'];
+
+        $this->assertSame(
+            ['base_price', 'door_variant', 'decor', 'surcharge'],
+            array_column($secondBreakdown['lines'], 'key'),
+        );
+        $this->assertEquals(1350.0, (float) $secondBreakdown['unit_price_without_vat']);
+
         // The inquiry keeps the totals of the whole request, so the older readers stay consistent.
         $this->assertEquals(4250.0, (float) $inquiry->price_without_vat);
         $this->assertEquals(5142.5, (float) $inquiry->price_with_vat);
@@ -520,6 +548,25 @@ class ConfiguratorInquiryTest extends TestCase
             'customer_email' => 'jan@example.com',
             'gdpr_consent' => '1',
         ])->assertSessionHasErrors('items.0.door_variant_id');
+
+        $this->assertDatabaseMissing(Inquiry::class, ['customer_email' => 'jan@example.com']);
+    }
+
+    /**
+     * The browser sends the saved items of the request only; a configuration that is still open in the editor is
+     * never added on its own. An empty list is therefore refused with an explanation instead of storing an
+     * inquiry nobody explicitly built.
+     */
+    public function test_an_inquiry_without_a_saved_item_is_rejected(): void
+    {
+        $this->from(route('front.configurator'))->post(route('front.configurator.inquiry.store'), [
+            'items' => [],
+            'customer_name' => 'Jan Novak',
+            'customer_email' => 'jan@example.com',
+            'gdpr_consent' => '1',
+        ])->assertSessionHasErrors([
+            'items' => 'Poptávka musí obsahovat alespoň jednu konfiguraci.',
+        ]);
 
         $this->assertDatabaseMissing(Inquiry::class, ['customer_email' => 'jan@example.com']);
     }

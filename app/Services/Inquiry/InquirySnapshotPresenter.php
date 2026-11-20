@@ -11,16 +11,20 @@ namespace App\Services\Inquiry;
  * nobody has to edit JSON by hand and a later change of the catalog can not rewrite what the customer
  * actually selected.
  *
- * Three views are produced from the same snapshot:
+ * Four views are produced from the same snapshot:
  *
- *  - `itemLines()` describes the selection of one configured door (model, variant, decor, glass,
- *    surcharges and the modifiers they add),
+ *  - `itemLines()` describes what was selected for one configured door (model, variant, decor, glass and
+ *    the names of the surcharges), without prices,
+ *  - `priceBreakdownLines()` explains the price of one piece: the base price of the model and every part
+ *    that was added to it, each with its name and its amount,
  *  - `itemPriceLines()` adds the price per piece and the line price of that door,
  *  - `summaryLines()` is the recap of the whole request: the number of doors and the price without
  *    VAT, the VAT amount and the price with VAT.
  *
  * `lines()` keeps rendering the single door view of an inquiry stored before the items existed, so an
- * invoice-like reading of an old record never changes.
+ * invoice-like reading of an old record never changes. `storedPriceComparison()` is the bridge to the
+ * editable side: it says how the price currently stored in the administration differs from the snapshot
+ * without touching the snapshot itself.
  */
 class InquirySnapshotPresenter
 {
@@ -40,13 +44,17 @@ class InquirySnapshotPresenter
 
         return array_values(array_filter([
             ...$this->itemLines($configuration),
+            ...$this->priceBreakdownLines($configuration),
             $this->line('Spočtená cena bez DPH', $this->money($totals['price_without_vat'] ?? null)),
             $this->line('Spočtená cena s DPH', $this->totalsWithVatText($totals)),
         ]));
     }
 
     /**
-     * The selection of one configured door, without any price of the whole inquiry.
+     * What was selected for one configured door, without any money.
+     *
+     * The prices of the selected options belong to `priceBreakdownLines()`, so the same amount is never
+     * printed twice next to the same door.
      *
      * @param  array<string, mixed>|null  $configuration
      * @return list<array{label: string, value: string}>
@@ -70,11 +78,45 @@ class InquirySnapshotPresenter
             $this->line('Dekor', $this->namedCodeText($decor)),
             $this->line('Sklo', $this->glassText($glassType)),
             $this->line('Příplatky', $this->surchargeText($configuration)),
-            $this->line('Základní cena modelu bez DPH', $this->money($doorModel['base_price_without_vat'] ?? null)),
-            $this->line('Příplatek varianty bez DPH', $this->money($doorVariant['price_modifier'] ?? null)),
-            $this->line('Příplatek dekoru bez DPH', $this->money($decor['price_modifier'] ?? null)),
-            $this->line('Příplatek skla bez DPH', $this->money($glassType['price_modifier'] ?? null)),
         ]));
+    }
+
+    /**
+     * The exact composition of the price of one piece, as it was charged.
+     *
+     * Every amount is net (without VAT) and names the option that added it, so a higher price per piece is
+     * explained by the selection itself ("Sklo Čiré (GLA-0001) bez DPH: 300,00 Kč") instead of a jump of
+     * the total. The lines add up to the price per piece that `itemPriceLines()` shows.
+     *
+     * A snapshot stored before the breakdown was written has no `price_breakdown` block; its parts are then
+     * read from the model, variant, decor, glass and surcharge blocks that it has always carried, so an old
+     * inquiry reads exactly like a new one.
+     *
+     * @param  array<string, mixed>|null  $configuration
+     * @return list<array{label: string, value: string}>
+     */
+    public function priceBreakdownLines(?array $configuration): array
+    {
+        if (blank($configuration)) {
+            return [];
+        }
+
+        $lines = [];
+
+        foreach ($this->priceParts($configuration) as $part) {
+            $amount = $part['amount_without_vat'] ?? null;
+
+            if (! is_numeric($amount)) {
+                continue;
+            }
+
+            $lines[] = [
+                'label' => $this->pricePartLabel($part),
+                'value' => $this->pricePartValue($part, (float) $amount),
+            ];
+        }
+
+        return $lines;
     }
 
     /**
@@ -191,6 +233,201 @@ class InquirySnapshotPresenter
     }
 
     /**
+     * One sentence comparing the price stored in the administration with the snapshot of the same item.
+     *
+     * The workshop may recalculate an item from the current catalog or type a different price per piece,
+     * while the snapshot has to stay the record of what the customer was quoted. This sentence therefore
+     * prints both numbers when they differ, so the change is visible without rewriting the snapshot. A
+     * snapshot that still matches the stored price needs no sentence at all, which keeps the block quiet.
+     *
+     * @param  array<string, mixed>|null  $configuration
+     * @param  array{quantity?: mixed, unit_price_without_vat?: mixed, price_without_vat?: mixed, price_with_vat?: mixed}  $stored
+     */
+    public function storedPriceComparison(?array $configuration, array $stored): ?string
+    {
+        $totals = $this->section($configuration, 'totals');
+
+        if ($totals === []) {
+            $totals = $this->section($configuration, 'summary');
+        }
+
+        $snapshotUnitPrice = $totals['unit_price_without_vat'] ?? null;
+        $storedUnitPrice = $stored['unit_price_without_vat'] ?? null;
+
+        if (! is_numeric($snapshotUnitPrice) || ! is_numeric($storedUnitPrice)) {
+            return null;
+        }
+
+        if (abs((float) $snapshotUnitPrice - (float) $storedUnitPrice) < 0.005) {
+            return null;
+        }
+
+        $storedUnit = $this->money($storedUnitPrice);
+        $snapshotUnit = $this->money($snapshotUnitPrice);
+
+        if ($storedUnit === null || $snapshotUnit === null) {
+            return null;
+        }
+
+        return 'Aktuálně uložená cena se liší od snapshotu: '.$storedUnit.' za kus'
+            .$this->storedLineText($stored)
+            .'; při odeslání to bylo '.$snapshotUnit.' za kus.'
+            .' Snapshot z odeslání zůstává nezměněný.';
+    }
+
+    /**
+     * The quantity and the two line prices currently stored in the administration, as one parenthesis.
+     *
+     * @param  array<string, mixed>  $stored
+     */
+    private function storedLineText(array $stored): string
+    {
+        $quantity = $this->pieceCount($stored['quantity'] ?? null);
+        $withoutVat = $this->money($stored['price_without_vat'] ?? null);
+        $withVat = $this->money($stored['price_with_vat'] ?? null);
+
+        $parts = array_values(array_filter([
+            $quantity,
+            $withoutVat === null ? null : $withoutVat.' bez DPH',
+            $withVat === null ? null : $withVat.' s DPH',
+        ]));
+
+        return $parts === [] ? '' : ' ('.implode(' · ', $parts).')';
+    }
+
+    /**
+     * The priced parts of one piece: the stored breakdown when the snapshot carries one, otherwise the very
+     * same parts read from the blocks of the older snapshot.
+     *
+     * The older snapshot has no `price_breakdown`, but it has always kept the model, the variant, the decor,
+     * the glass and the surcharges with their price modifiers, which is exactly the data the breakdown
+     * describes. Reading them here means an inquiry sent before the breakdown existed is explained by the
+     * same lines as a new one.
+     *
+     * @param  array<string, mixed>  $configuration
+     * @return list<array{key?: mixed, label?: mixed, name?: mixed, code?: mixed, amount_without_vat?: mixed}>
+     */
+    private function priceParts(array $configuration): array
+    {
+        $storedLines = $this->section($configuration, 'price_breakdown')['lines'] ?? null;
+
+        if (is_array($storedLines) && $storedLines !== []) {
+            return array_values(array_filter($storedLines, is_array(...)));
+        }
+
+        $doorModel = $this->section($configuration, 'door_model');
+        $doorVariant = $this->section($configuration, 'door_variant');
+        $decor = $this->section($configuration, 'decor');
+        $glassType = $this->section($configuration, 'glass_type');
+
+        $parts = [
+            $this->pricePart('base_price', 'Základní cena dveří', null, null, $doorModel['base_price_without_vat'] ?? null),
+        ];
+
+        if ($doorVariant !== []) {
+            $parts[] = $this->pricePart(
+                'door_variant',
+                'Varianta',
+                $doorVariant['code'] ?? null,
+                $doorVariant['code'] ?? null,
+                $doorVariant['price_modifier'] ?? null,
+            );
+        }
+
+        if ($decor !== []) {
+            $parts[] = $this->pricePart(
+                'decor',
+                'Dekor',
+                $decor['name'] ?? null,
+                $decor['code'] ?? null,
+                $decor['price_modifier'] ?? null,
+            );
+        }
+
+        if ($glassType !== []) {
+            $parts[] = $this->pricePart(
+                'glass_type',
+                'Sklo',
+                $glassType['name'] ?? null,
+                $glassType['code'] ?? null,
+                $glassType['price_modifier'] ?? null,
+            );
+        }
+
+        foreach ($this->surchargeSections($configuration) as $surcharge) {
+            $parts[] = $this->pricePart(
+                'surcharge',
+                'Příplatek',
+                $surcharge['name'] ?? null,
+                $surcharge['code'] ?? null,
+                $surcharge['price_without_vat'] ?? null,
+            );
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @return array{key: string, label: string, name: mixed, code: mixed, amount_without_vat: mixed}
+     */
+    private function pricePart(string $key, string $label, mixed $name, mixed $code, mixed $amountWithoutVat): array
+    {
+        return [
+            'key' => $key,
+            'label' => $label,
+            'name' => $name,
+            'code' => $code,
+            'amount_without_vat' => $amountWithoutVat,
+        ];
+    }
+
+    /**
+     * "Dekor Dub přírodní (DEC-0001) bez DPH": the kind of the part, the option that was chosen and the price
+     * level of the amount, so the value never has to be guessed.
+     *
+     * @param  array{label?: mixed, name?: mixed, code?: mixed}  $part
+     */
+    private function pricePartLabel(array $part): string
+    {
+        $label = $this->text($part['label'] ?? null) ?? 'Cena';
+        $option = $this->namedCodeText(['name' => $part['name'] ?? null, 'code' => $part['code'] ?? null]);
+
+        return ($option === null ? $label : $label.' '.$option).' bez DPH';
+    }
+
+    /**
+     * A selected option that costs nothing is described in words: a column of zeros would hide the parts of
+     * the price that do matter, while the fact that the customer chose the option is worth keeping.
+     *
+     * @param  array{key?: mixed}  $part
+     */
+    private function pricePartValue(array $part, float $amount): string
+    {
+        if (round($amount, 2) === 0.0 && ($part['key'] ?? null) !== 'base_price') {
+            return 'bez příplatku';
+        }
+
+        return $this->money($amount) ?? '';
+    }
+
+    /**
+     * The surcharge blocks of the snapshot, skipping anything that is not an array.
+     *
+     * @param  array<string, mixed>  $configuration
+     * @return list<array<string, mixed>>
+     */
+    private function surchargeSections(array $configuration): array
+    {
+        $surcharges = $configuration['surcharges'] ?? null;
+
+        if (! is_array($surcharges)) {
+            return [];
+        }
+
+        return array_values(array_filter($surcharges, is_array(...)));
+    }
+
+    /**
      * The block of the snapshot, or an empty array when it is not an array in the stored JSON.
      *
      * @param  array<string, mixed>|null  $configuration
@@ -262,37 +499,26 @@ class InquirySnapshotPresenter
     }
 
     /**
-     * Surcharges with the prices that were valid at the time of the inquiry.
+     * The names of the surcharges that were selected; their amounts are part of the price breakdown, which
+     * is rendered next to this list, so a name never carries a price twice.
      *
      * @param  array<string, mixed>  $configuration
      */
     private function surchargeText(array $configuration): ?string
     {
-        $surcharges = $configuration['surcharges'] ?? null;
+        $names = [];
 
-        if (! is_array($surcharges)) {
-            return null;
-        }
-
-        $labels = [];
-
-        foreach ($surcharges as $surcharge) {
-            if (! is_array($surcharge)) {
-                continue;
-            }
-
+        foreach ($this->surchargeSections($configuration) as $surcharge) {
             $name = $this->text($surcharge['name'] ?? null);
 
             if ($name === null) {
                 continue;
             }
 
-            $price = $this->money($surcharge['price_without_vat'] ?? null);
-
-            $labels[] = $price === null ? $name : $name.' ('.$price.')';
+            $names[] = $name;
         }
 
-        return $labels === [] ? null : implode('; ', $labels);
+        return $names === [] ? null : implode('; ', $names);
     }
 
     /**

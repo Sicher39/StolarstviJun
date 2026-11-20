@@ -77,11 +77,95 @@ export const formatItemCount = (count: number): string => {
   return `${count} položek`
 }
 
-// The line price is what the customer pays for the item, the unit price is only one door of it. Both are
-// rounded to the haléř on the client as well, so the cart of the browser never shows a 0.01 difference
-// against the recap of the server.
+// Both price levels are rounded to the haléř on the client as well, so the cart of the browser never shows a
+// 0.01 difference against the recap of the server.
+const roundPrice = (value: number): number => Math.round(value * 100) / 100
+
+// The line price is what the customer pays for the item, the unit price is only one door of it.
 export const itemLineTotal = (item: Pick<InquiryItemDraft, 'quantity' | 'unit_price_without_vat'>): number => {
-  return Math.round(item.quantity * item.unit_price_without_vat * 100) / 100
+  return roundPrice(item.quantity * item.unit_price_without_vat)
+}
+
+/**
+ * One part of the price of a single door, in the order the configurator adds it up.
+ */
+export interface UnitPriceBreakdownLine {
+  key: 'base' | 'variant' | 'decor' | 'glass' | 'surcharge'
+  label: string
+  amount: number
+}
+
+export interface UnitPriceBreakdown {
+  /**
+   * The base price of the configured model. It is the first row of the collapsed breakdown of the item,
+   * because it is the part of the price the visitor picked first.
+   */
+  base: UnitPriceBreakdownLine
+  /**
+   * Only the selected options that actually move the price of one piece, in the order they are added.
+   * An option with a zero price modifier is not a surcharge, so it is left out completely.
+   */
+  lines: UnitPriceBreakdownLine[]
+}
+
+// Mirrors the documented server formula: base price of the model + variant + decor + glass + surcharges. The
+// base price is returned on its own and the priced parts are listed one by one, so a customer who selects a
+// glass or a decor sees which option moved the price per piece and by how much, instead of only the
+// resulting total. A selected option whose modifier is zero adds nothing and is not named at all: the
+// disclosure of surcharges may only contain amounts that were really charged.
+export const unitPriceBreakdown = (item: InquiryItemDraft): UnitPriceBreakdown => {
+  const variantName = item.variant?.code ?? item.variant_label
+  const modifiers: UnitPriceBreakdownLine[] = [
+    {
+      key: 'variant',
+      label: ['Varianta', variantName].filter((part): part is string => Boolean(part)).join(' '),
+      amount: item.variant?.price_modifier ?? 0,
+    },
+  ]
+
+  if (item.decor) {
+    modifiers.push({
+      key: 'decor',
+      label: `Dekor ${item.decor.name}`,
+      amount: item.decor.price_modifier,
+    })
+  }
+
+  if (item.glass) {
+    modifiers.push({
+      key: 'glass',
+      label: `Sklo ${item.glass.name}`,
+      amount: item.glass.price_modifier,
+    })
+  }
+
+  for (const surcharge of item.surcharges) {
+    modifiers.push({
+      key: 'surcharge',
+      label: `Příplatek ${surcharge.name}`,
+      amount: surcharge.price_without_vat,
+    })
+  }
+
+  // The base price is the anchor of the list. A draft of an older item without it keeps the documented sum by
+  // taking the rest of the price per piece, so the base price and the listed surcharges always add up to the
+  // amount the row shows.
+  const additions = modifiers.reduce((sum, line) => sum + line.amount, 0)
+  const basePrice = typeof item.base_price_without_vat === 'number'
+    ? item.base_price_without_vat
+    : item.unit_price_without_vat - additions
+
+  const lines = modifiers
+    .filter((modifier: UnitPriceBreakdownLine): boolean => Math.abs(modifier.amount) >= 0.005)
+    .map((modifier: UnitPriceBreakdownLine): UnitPriceBreakdownLine => ({
+      ...modifier,
+      amount: roundPrice(modifier.amount),
+    }))
+
+  return {
+    base: { key: 'base', label: 'Základní cena dveří', amount: roundPrice(basePrice) },
+    lines,
+  }
 }
 
 export const sumQuantities = (items: Pick<InquiryItemDraft, 'quantity'>[]): number => {
@@ -89,7 +173,7 @@ export const sumQuantities = (items: Pick<InquiryItemDraft, 'quantity'>[]): numb
 }
 
 export const sumPriceWithoutVat = (items: InquiryItemDraft[]): number => {
-  return Math.round(items.reduce((total, item) => total + itemLineTotal(item), 0) * 100) / 100
+  return roundPrice(items.reduce((total, item) => total + itemLineTotal(item), 0))
 }
 
 // The label of the item is derived from the selection until the visitor types their own name.

@@ -42,20 +42,107 @@ class InquiryResourceTest extends TestCase
 
         $values = array_column($lines, 'value', 'label');
 
-        $this->assertSame(13, count($lines));
+        $this->assertSame(14, count($lines));
         $this->assertSame('Interiérové dveře Nord', $values['Model dveří']);
         $this->assertSame('PLNÉ-80 · 800 × 2100 mm', $values['Varianta']);
         $this->assertSame('falcové', $values['Typ otevírání']);
         $this->assertSame('levé', $values['Směr otevírání']);
         $this->assertSame('Dub přírodní (DEC-0001)', $values['Dekor']);
         $this->assertSame('Čiré (GLA-0001) · krytí 70 %', $values['Sklo']);
-        $this->assertSame('Montáž (50,00 Kč)', $values['Příplatky']);
-        $this->assertSame('1 200,00 Kč', $values['Základní cena modelu bez DPH']);
-        $this->assertSame('250,00 Kč', $values['Příplatek varianty bez DPH']);
-        $this->assertSame('150,00 Kč', $values['Příplatek dekoru bez DPH']);
-        $this->assertSame('100,00 Kč', $values['Příplatek skla bez DPH']);
+        $this->assertSame('Montáž', $values['Příplatky']);
+        // The selection is described without amounts, the amounts follow in the breakdown of the price.
+        $this->assertSame('1 200,00 Kč', $values['Základní cena dveří bez DPH']);
+        $this->assertSame('250,00 Kč', $values['Varianta PLNÉ-80 bez DPH']);
+        $this->assertSame('150,00 Kč', $values['Dekor Dub přírodní (DEC-0001) bez DPH']);
+        $this->assertSame('100,00 Kč', $values['Sklo Čiré (GLA-0001) bez DPH']);
+        $this->assertSame('50,00 Kč', $values['Příplatek Montáž (SUR-0001) bez DPH']);
         $this->assertSame('1 750,00 Kč', $values['Spočtená cena bez DPH']);
         $this->assertSame('2 117,50 Kč (21 %)', $values['Spočtená cena s DPH']);
+    }
+
+    public function test_the_price_breakdown_of_a_snapshot_explains_every_part_of_the_price_per_piece(): void
+    {
+        $breakdown = app(InquirySnapshotPresenter::class)->priceBreakdownLines($this->configuration());
+
+        $this->assertSame([
+            'Základní cena dveří bez DPH',
+            'Varianta PLNÉ-80 bez DPH',
+            'Dekor Dub přírodní (DEC-0001) bez DPH',
+            'Sklo Čiré (GLA-0001) bez DPH',
+            'Příplatek Montáž (SUR-0001) bez DPH',
+        ], array_column($breakdown, 'label'));
+
+        // A snapshot written before the breakdown existed is explained from the blocks it has always kept,
+        // and the parts still add up to the price per piece of that door.
+        $this->assertEquals(1750.0, $this->sumOfBreakdown($breakdown));
+    }
+
+    public function test_the_stored_breakdown_of_an_item_explains_the_price_that_was_charged(): void
+    {
+        $presenter = app(InquirySnapshotPresenter::class);
+
+        $configuration = $this->configuration();
+        $configuration['price_breakdown'] = [
+            'vat_rate' => 21.0,
+            'unit_price_without_vat' => 1450.0,
+            'unit_price_with_vat' => 1754.5,
+            'lines' => [
+                ['key' => 'base_price', 'label' => 'Základní cena dveří', 'name' => null, 'code' => null, 'amount_without_vat' => 1200.0],
+                ['key' => 'door_variant', 'label' => 'Varianta', 'name' => 'PLNÉ-80', 'code' => 'PLNÉ-80', 'amount_without_vat' => 0.0],
+                ['key' => 'decor', 'label' => 'Dekor', 'name' => 'Dub přírodní', 'code' => 'DEC-0001', 'amount_without_vat' => 0.0],
+                ['key' => 'glass_type', 'label' => 'Sklo', 'name' => 'Čiré', 'code' => 'GLA-0001', 'amount_without_vat' => 250.0],
+            ],
+        ];
+
+        $values = array_column($presenter->priceBreakdownLines($configuration), 'value', 'label');
+
+        $this->assertSame('1 200,00 Kč', $values['Základní cena dveří bez DPH']);
+        // The stored amounts win over the blocks of the snapshot, so a later change of the catalog can not
+        // rewrite what was charged.
+        $this->assertSame('250,00 Kč', $values['Sklo Čiré (GLA-0001) bez DPH']);
+        // A selected option that costs nothing is described in words instead of a zero column.
+        $this->assertSame('bez příplatku', $values['Varianta PLNÉ-80 bez DPH']);
+        $this->assertSame('bez příplatku', $values['Dekor Dub přírodní (DEC-0001) bez DPH']);
+    }
+
+    public function test_the_stored_price_of_an_item_is_compared_with_its_snapshot(): void
+    {
+        $presenter = app(InquirySnapshotPresenter::class);
+
+        $configuration = $this->configuration();
+        $configuration['totals'] = [
+            'quantity' => 2,
+            'unit_price_without_vat' => 1750.0,
+            'price_without_vat' => 3500.0,
+            'price_with_vat' => 4235.0,
+            'vat_rate' => 21.0,
+        ];
+
+        // An item that was not recalculated needs no sentence, the snapshot speaks for itself.
+        $this->assertNull($presenter->storedPriceComparison($configuration, [
+            'quantity' => 2,
+            'unit_price_without_vat' => '1750.00',
+            'price_without_vat' => '3500.00',
+            'price_with_vat' => '4235.00',
+        ]));
+
+        // A recalculated price is printed next to the original one, and the snapshot stays untouched.
+        $this->assertSame(
+            'Aktuálně uložená cena se liší od snapshotu: 1 800,00 Kč za kus (2 ks · 3 600,00 Kč bez DPH · 4 356,00 Kč s DPH)'
+                .'; při odeslání to bylo 1 750,00 Kč za kus. Snapshot z odeslání zůstává nezměněný.',
+            $presenter->storedPriceComparison($configuration, [
+                'quantity' => 2,
+                'unit_price_without_vat' => '1800.00',
+                'price_without_vat' => '3600.00',
+                'price_with_vat' => '4356.00',
+            ]),
+        );
+
+        // Without a price per piece on one of the sides there is nothing to compare.
+        $this->assertNull($presenter->storedPriceComparison(['door_model' => ['name' => 'Model X']], [
+            'unit_price_without_vat' => 1000,
+        ]));
+        $this->assertNull($presenter->storedPriceComparison($configuration, []));
     }
 
     public function test_the_totals_of_the_snapshot_are_summarised_for_the_price_section(): void
@@ -94,7 +181,9 @@ class InquiryResourceTest extends TestCase
         $this->assertSame([], $presenter->summaryLines(null));
         $this->assertSame([], $presenter->itemLines(null));
         $this->assertSame([], $presenter->itemPriceLines(null));
+        $this->assertSame([], $presenter->priceBreakdownLines(null));
         $this->assertNull($presenter->computedTotals(null));
+        $this->assertNull($presenter->storedPriceComparison(null, ['unit_price_without_vat' => 1000]));
         $this->assertNull($presenter->computedTotals(['door_model' => ['name' => 'Model X']]));
     }
 
@@ -122,31 +211,38 @@ class InquiryResourceTest extends TestCase
         $summary = array_column($presenter->summaryLines($configuration), 'value', 'label');
 
         $this->assertSame('3 ks', $summary['Celkem dveří']);
-        $this->assertSame('4 250,00 Kč', $summary['Cena bez DPH']);
-        $this->assertSame('892,50 Kč', $summary['DPH']);
-        $this->assertSame('5 142,50 Kč', $summary['Cena s DPH']);
+        $this->assertSame('5 050,00 Kč', $summary['Cena bez DPH']);
+        $this->assertSame('1 060,50 Kč', $summary['DPH']);
+        $this->assertSame('6 110,50 Kč', $summary['Cena s DPH']);
         $this->assertSame('21 %', $summary['Sazba DPH']);
 
         // The price per piece is always shown next to the line price of the same item.
         $secondItem = array_column($presenter->itemPriceLines($configuration['items'][1]), 'value', 'label');
 
         $this->assertSame('2 ks', $secondItem['Množství']);
-        $this->assertSame('1 350,00 Kč', $secondItem['Cena za kus bez DPH']);
-        $this->assertSame('2 700,00 Kč', $secondItem['Cena celkem bez DPH']);
-        $this->assertSame('3 267,00 Kč', $secondItem['Cena celkem s DPH']);
+        $this->assertSame('1 650,00 Kč', $secondItem['Cena za kus bez DPH']);
+        $this->assertSame('3 300,00 Kč', $secondItem['Cena celkem bez DPH']);
+        $this->assertSame('3 993,00 Kč', $secondItem['Cena celkem s DPH']);
+
+        // The item that was sent without glass has no glass in its breakdown, so the list never pretends
+        // that something was charged for it.
+        $secondBreakdown = array_column($presenter->priceBreakdownLines($configuration['items'][1]), 'value', 'label');
+
+        $this->assertArrayNotHasKey('Sklo Čiré (GLA-0001) bez DPH', $secondBreakdown);
+        $this->assertEquals(1650.0, $this->sumOfBreakdown($presenter->priceBreakdownLines($configuration['items'][1])));
 
         $selection = array_column($presenter->itemLines($configuration['items'][0]), 'value', 'label');
 
         $this->assertSame('Interiérové dveře Nord', $selection['Model dveří']);
-        $this->assertSame('Montáž (50,00 Kč)', $selection['Příplatky']);
+        $this->assertSame('Montáž', $selection['Příplatky']);
 
         // The single door view of the same snapshot keeps describing the first item with the order totals.
         $legacy = array_column($presenter->lines($configuration), 'value', 'label');
 
-        $this->assertSame('4 250,00 Kč', $legacy['Spočtená cena bez DPH']);
-        $this->assertSame('5 142,50 Kč (21 %)', $legacy['Spočtená cena s DPH']);
+        $this->assertSame('5 050,00 Kč', $legacy['Spočtená cena bez DPH']);
+        $this->assertSame('6 110,50 Kč (21 %)', $legacy['Spočtená cena s DPH']);
         $this->assertSame(
-            'Konfigurátor spočítal 4 250,00 Kč bez DPH / 5 142,50 Kč s DPH (sazba DPH 21 %).',
+            'Konfigurátor spočítal 5 050,00 Kč bez DPH / 6 110,50 Kč s DPH (sazba DPH 21 %).',
             $presenter->computedTotals($configuration),
         );
     }
@@ -703,6 +799,22 @@ class InquiryResourceTest extends TestCase
     }
 
     /**
+     * The sum of the amounts of a price breakdown, parsed back from the formatted values of the presenter.
+     *
+     * @param  list<array{label: string, value: string}>  $breakdown
+     */
+    private function sumOfBreakdown(array $breakdown): float
+    {
+        $sum = 0.0;
+
+        foreach ($breakdown as $line) {
+            $sum += (float) str_replace([' ', 'Kč', ','], ['', '', '.'], $line['value']);
+        }
+
+        return round($sum, 2);
+    }
+
+    /**
      * @return array{0: DoorModel, 1: DoorVariant}
      */
     private function catalog(): array
@@ -837,6 +949,10 @@ class InquiryResourceTest extends TestCase
      * carry their own prices, the summary carries the recap of the whole request and the single door view
      * on the top level describes the first item.
      *
+     * Neither item carries a `price_breakdown`, which is exactly how an inquiry sent before the breakdown
+     * existed looks: the presenter has to explain its price from the model, the variant, the decor, the
+     * glass and the surcharges that the snapshot has always kept.
+     *
      * @return array<string, mixed>
      */
     private function multiItemConfiguration(): array
@@ -856,11 +972,12 @@ class InquiryResourceTest extends TestCase
         $secondItem['name'] = 'Dveře do koupelny';
         $secondItem['quantity'] = 2;
         $secondItem['glass_type'] = null;
+        // Without the glass only the base price, the variant, the decor and the surcharge remain.
         $secondItem['totals'] = [
             'quantity' => 2,
-            'unit_price_without_vat' => 1350.0,
-            'price_without_vat' => 2700.0,
-            'price_with_vat' => 3267.0,
+            'unit_price_without_vat' => 1650.0,
+            'price_without_vat' => 3300.0,
+            'price_with_vat' => 3993.0,
             'vat_rate' => 21.0,
         ];
 
@@ -868,9 +985,9 @@ class InquiryResourceTest extends TestCase
             'items' => [$firstItem, $secondItem],
             'summary' => [
                 'total_doors' => 3,
-                'price_without_vat' => 4250.0,
-                'vat_amount' => 892.5,
-                'price_with_vat' => 5142.5,
+                'price_without_vat' => 5050.0,
+                'vat_amount' => 1060.5,
+                'price_with_vat' => 6110.5,
                 'vat_rate' => 21.0,
             ],
             'door_model' => $firstItem['door_model'],
@@ -879,8 +996,8 @@ class InquiryResourceTest extends TestCase
             'glass_type' => $firstItem['glass_type'],
             'surcharges' => $firstItem['surcharges'],
             'totals' => [
-                'price_without_vat' => 4250.0,
-                'price_with_vat' => 5142.5,
+                'price_without_vat' => 5050.0,
+                'price_with_vat' => 6110.5,
                 'vat_rate' => 21.0,
             ],
         ];
