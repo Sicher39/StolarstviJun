@@ -129,10 +129,10 @@ onUnmounted(() => {
 <template>
   <div class="flex justify-center w-full">
     <nav
-      class="flex w-full justify-center items-center  px-1 md:px-4 xl:px-0 max-w-480"
+      class="content-shell flex w-full items-center justify-center"
       :class="[scrolledFromTop ? 'bg-dark/50 backdrop-blur' : ' ']"
     >
-      <div class="flex justify-between w-full px-5 lg:px-10">
+      <div class="flex w-full justify-between">
         <Link href="/" class="flex justify-center cursor-pointer px-2 md:px-0 md:pr-2 ">
           <img
             :src="`/img/logo/COL-stolarstvi-jun.svg`"
@@ -235,7 +235,7 @@ onUnmounted(() => {
 
     <div
       v-if="searchOpen"
-      class="fixed inset-0 z-50 flex items-start justify-center bg-dark/70 backdrop-blur overflow-y-auto"
+      class="fixed inset-0 z-50 flex items-start justify-center bg-dark/70 backdrop-blur overflow-y-auto px-4 smW:px-6"
       @click.self="closeSearch"
     >
       <div
@@ -243,7 +243,7 @@ onUnmounted(() => {
         role="dialog"
         aria-modal="true"
         aria-label="Vyhledávání"
-        class="w-full max-w-2xl mt-24 bg-dark/90 border border-dark/60 rounded-lg p-6 max-h-[80vh] overflow-y-auto"
+        class="w-full max-w-2xl mt-20 bg-dark/90 border border-dark/60 rounded-lg p-4 max-h-[80vh] overflow-y-auto smW:mt-24 smW:p-6"
       >
         <div class="flex items-center gap-3">
           <input
@@ -328,7 +328,7 @@ onUnmounted(() => {
     <div
       id="mobile-menu"
       :aria-hidden="!open"
-      class="flex justify-end bg-dark min-h-screen px-4 lg:hidden max-h-screen overflow-y-auto"
+      class="flex justify-end bg-dark min-h-screen px-5 lg:hidden max-h-screen overflow-y-auto smW:px-8"
       :class="[
         open ? 'animation ease-in duration-1000 w-full' : 'hidden animation ease-in duration-1000'
       ]"

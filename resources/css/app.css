@@ -1,13 +1,118 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   Design tokens (colors, fonts, breakpoints, fluid type scale)
+   ========================================================================= */
+@theme {
+    /* ---- colors ---- */
+    --color-dark: #351a0c;
+    --color-primary: #ffffff;
+    --color-accent: #fbbd83;
+    --color-lightDark: #703D20;
+    --color-red: #941101;
+
+    /* ---- fonts ---- */
+    --font-head: the-seasons, sans-serif;
+    --font-main: apparat-light, sans-serif;
+
+    /* ---- breakpoints ----
+       The public site is written mobile first, so the unprefixed (base) range is the phone range:
+
+         base   0 – 479px   phone portrait (default styling of every template)
+         xs     480px       large phone / phone landscape
+         smW    700px       small tablet, two column blocks start here
+         md     768px       tablet portrait
+         lg     1024px      laptop, the editorial desktop composition starts here
+         xl     1280px      desktop
+         2xl    1536px      wide desktop (the original 8xl headings)
+         3xl    1800px
+         qhd    2560px
+         4k     3840px
+
+       `sm` stays at 375px for backward compatibility. It predates this scale and the door
+       configurator relies on it (`sm:grid-cols-2` in the step components), but 375px is covered by
+       nearly every phone, which makes `sm:` an almost no-op variant. Do not use `sm:` outside the
+       configurator — use `xs`, `smW`, `md` and up. */
+    --breakpoint-sm: 375px;
+    --breakpoint-xs: 480px;
+    --breakpoint-smW: 700px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 1024px;
+    --breakpoint-xl: 1280px;
+    --breakpoint-2xl: 1536px;
+    --breakpoint-3xl: 1800px;
+    --breakpoint-qhd: 2560px;
+    --breakpoint-4k: 3840px;
+
+    /* ---- fluid type scale ----
+       Each token renders its lower bound at 375px and reaches its upper bound at 1536px, everything in
+       between interpolates. They replace the fixed `text-6xl` / `md:text-7xl` steps, which were sized
+       for a desktop and overflowed the phones. */
+    --text-fluid-base: clamp(1rem, 0.92rem + 0.34vw, 1.25rem);
+    --text-fluid-base--line-height: 1.6;
+    --text-fluid-lg: clamp(1.0625rem, 0.92rem + 0.6vw, 1.5rem);
+    --text-fluid-lg--line-height: 1.5;
+    --text-fluid-xl: clamp(1.125rem, 0.88rem + 1.03vw, 1.875rem);
+    --text-fluid-xl--line-height: 1.3;
+    --text-fluid-2xl: clamp(1.375rem, 1.09rem + 1.21vw, 2.25rem);
+    --text-fluid-2xl--line-height: 1.2;
+    --text-fluid-3xl: clamp(1.75rem, 1.35rem + 1.72vw, 3rem);
+    --text-fluid-3xl--line-height: 1.15;
+    --text-fluid-4xl: clamp(2rem, 1.43rem + 2.41vw, 3.75rem);
+    --text-fluid-4xl--line-height: 1.08;
+    --text-fluid-5xl: clamp(2.25rem, 1.04rem + 5.17vw, 6rem);
+    --text-fluid-5xl--line-height: 1.02;
+    --text-fluid-6xl: clamp(2.5rem, 1.85rem + 2.76vw, 4.5rem);
+    --text-fluid-6xl--line-height: 1.05;
+}
+
+/* ============================================================================
+   Layout utilities
+   ========================================================================= */
+
+/* The single content shell of the public site: the 1920px editorial measure (`max-w-480`) with a gutter
+   that grows with the viewport, so phones get 16px instead of the former 8px. Blocks that intentionally
+   bleed to the screen edge (the Contact photo) simply do not use it. */
+@utility content-shell {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 120rem;
+    padding-inline: clamp(1rem, 4vw, 2.5rem);
+}
+
+/* Vertical rhythm between the big page blocks. The original 300px / 350px spacers only make sense on a
+   desktop; the clamp keeps the same editorial air from `lg` up and collapses the gap on phones. */
+@utility section-gap-top {
+    margin-block-start: clamp(4rem, 18vw, 20rem);
+}
+
+@utility section-gap-bottom {
+    margin-block-end: clamp(3rem, 10vw, 12rem);
+}
+
 @layer base {
+    html {
+        /* Keeps the fluid type from being inflated when a phone is rotated. */
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+
+    body {
+        @apply bg-dark text-primary;
+        /* The header sections bleed their photo past the container edge on purpose. Clipping only the x
+           axis keeps that composition from turning into a horizontal scrollbar on narrow screens.
+           `clip` (not `hidden`) is required: it does not create a scroll container, so the sticky
+           category bar of the References page keeps working. */
+        overflow-x: clip;
+    }
+
     h1 { @apply font-head text-primary; }
     h2 { @apply font-main font-thin text-primary; }
-    h3 { @apply font-head font-normal text-left text-xl md:text-2xl text-primary; }
-    h4 { @apply font-head font-normal text-left text-xl md:text-7xl  text-primary; }
-    h5 { @apply font-main text-primary text-xl md:text-3xl; }
-    p  { @apply font-main font-thin text-xl text-primary; }
-    li { @apply font-normal text-xl; }
+    h3 { @apply font-head font-normal text-left text-fluid-base md:text-fluid-lg text-primary; }
+    h4 { @apply font-head font-normal text-left text-fluid-2xl md:text-fluid-6xl  text-primary; }
+    h5 { @apply font-main text-primary text-fluid-base md:text-fluid-xl; }
+    p  { @apply font-main font-thin text-fluid-base text-primary; }
+    li { @apply font-normal text-fluid-base; }
 
     .scrollbar-hide {
         -ms-overflow-style: none;
@@ -17,31 +122,6 @@
     .scrollbar-hide::-webkit-scrollbar {
         display: none;
     }
-}
-
-/* ---- Design tokens (colors, fonts, breakpoints) ---- */
-@theme {
-    /* colors */
-    --color-dark: #351a0c;
-    --color-primary: #ffffff;
-    --color-accent: #fbbd83;
-    --color-lightDark: #703D20;
-    --color-red: #941101;
-
-    /* fonts */
-    --font-head: the-seasons, sans-serif;
-    --font-main: apparat-light, sans-serif;
-
-    /* breakpoints */
-    --breakpoint-sm: 375px;
-    --breakpoint-smW: 700px;
-    --breakpoint-md: 768px;
-    --breakpoint-lg: 1024px;
-    --breakpoint-xl: 1280px;
-    --breakpoint-2xl: 1536px;
-    --breakpoint-3xl: 1800px;
-    --breakpoint-qhd: 2560px;
-    --breakpoint-4k: 3840px;
 }
 
 @utility bg-3xlIndex { background-image: url("/img/bg/01/red-door.png"); }
@@ -61,13 +141,13 @@
 
 .legal-document h2 {
     margin-top: 2.75rem;
-    font-size: 1.5rem;
+    font-size: clamp(1.375rem, 1.09rem + 1.21vw, 1.5rem);
     line-height: 1.3;
 }
 
 .legal-document h3 {
     margin-top: 2rem;
-    font-size: 1.25rem;
+    font-size: clamp(1.125rem, 1rem + 0.6vw, 1.25rem);
     line-height: 1.35;
 }
 

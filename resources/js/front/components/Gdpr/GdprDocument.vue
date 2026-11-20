@@ -36,7 +36,7 @@ const updatedAt = computed<string | null>(() => formatDate(props.document.update
 </script>
 
 <template>
-  <div class="flex w-full justify-center px-2 py-12 md:pb-20">
+  <div class="flex w-full justify-center px-5 py-12 smW:px-8 md:pb-20">
     <div class="block w-full 2xl:w-10/12 3xl:w-9/12">
       <div class="mx-auto block w-full lg:w-10/12 xl:w-8/12">
         <p

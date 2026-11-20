@@ -134,10 +134,10 @@ const openCookieSettings = (): void => {
 
 <template>
   <footer class="w-full border-t border-accent/40 bg-dark">
-    <div class="mx-auto w-full max-w-480 px-5 pb-8 pt-14 lg:px-10 lg:pb-10 lg:pt-20">
-      <div class="grid grid-cols-1 gap-10 smW:grid-cols-2 lg:grid-cols-3 lg:gap-8 xl:grid-cols-5">
+    <div class="content-shell pb-8 pt-14 lg:pb-10 lg:pt-20">
+      <div class="grid grid-cols-1 gap-10 xs:grid-cols-2 lg:grid-cols-4 lg:gap-8 xl:grid-cols-5">
         <!-- Logo with the claim -->
-        <div class="smW:col-span-2 lg:col-span-3 xl:col-span-1">
+        <div class="col-span-1 xs:col-span-2 lg:col-span-4 xl:col-span-1">
           <Link href="/" class="inline-flex w-fit">
             <img
               src="/img/logo/COL-stolarstvi-jun.svg"

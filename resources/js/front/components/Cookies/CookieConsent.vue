@@ -169,7 +169,7 @@ onBeforeUnmount(() => {
             </p>
           </div>
 
-          <div class="flex flex-col gap-2 sm:flex-row">
+          <div class="flex flex-col gap-2 smW:flex-row">
             <button
               type="button"
               class="border border-primary/40 px-5 py-3 text-xs uppercase tracking-[0.18em] text-primary transition hover:border-primary hover:bg-primary hover:text-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -262,7 +262,7 @@ onBeforeUnmount(() => {
             >{{ legalLinks.cookie_policy.title }}</a>
           </p>
 
-          <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-between">
+          <div class="mt-6 flex flex-col gap-2 smW:flex-row smW:justify-between">
             <button
               type="button"
               class="border border-primary/40 px-5 py-3 text-xs uppercase tracking-[0.18em] text-primary transition hover:border-primary hover:bg-primary hover:text-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"

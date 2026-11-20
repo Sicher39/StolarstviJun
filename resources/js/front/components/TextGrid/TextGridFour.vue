@@ -28,9 +28,9 @@ const sections = computed(() =>
 
 <template>
   <div
-    class="grid grid-cols-1 smW:grid-cols-2 lg:grid-cols-4 lg:grid-rows-[auto_auto] w-full py-32 reveal"
+    class="grid w-full grid-cols-1 py-16 smW:grid-cols-2 smW:py-24 lg:grid-cols-4 lg:grid-rows-[auto_auto] lg:py-32 reveal"
   >
-    <div class="px-3 py-5 lg:row-span-2">
+    <div class="px-3 py-5 smW:col-span-2 lg:col-span-1 lg:row-span-2">
       <p>{{ sectionHeader }}</p>
     </div>
 
@@ -39,7 +39,7 @@ const sections = computed(() =>
       :key="i"
       class="grid px-3 py-5 border-l border-primary dark:border-white lg:row-span-2 lg:grid-rows-subgrid my-6 lg:my-0"
     >
-      <div class="block h-[200px] smW:h-[150px] xl:h-[300px]">
+      <div class="block h-auto smW:h-[150px] xl:h-[300px]">
         <h4 class="font-head text-4xl smW:text-3xl lg:text-xl 3xl:text-4xl font-black uppercase">
           {{ section.header }}
         </h4>

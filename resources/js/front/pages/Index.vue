@@ -103,10 +103,10 @@ const woodFactory = ref([
 
 
   <FullSection>
-    <div class="block w-full lg:pb-10 mt-[350px]">
-      <h3 class="text-accent text-6xl 2xl:text-8xl reveal">Poctivá výroba dveří<br>
+    <div class="block w-full section-gap-top lg:pb-10">
+      <h3 class="text-accent text-fluid-4xl 2xl:text-fluid-5xl reveal">Poctivá výroba dveří<br>
         bez kompromisů kvality</h3>
-      <p class="mt-10 reveal text-xl uppercase">Nejsme sériová výroba. Každé dveře vznikají na zakázku – podle prostoru,
+      <p class="mt-10 reveal text-fluid-base uppercase">Nejsme sériová výroba. Každé dveře vznikají na zakázku – podle prostoru,
         <br> stylu i přání
         zákazníka.</p>
       <div class="block pt-10">
@@ -121,31 +121,33 @@ const woodFactory = ref([
     dlouhou tradici, kterou dnes rozvíjí už druhá generace.
   </ScrollLinesRevealSection>
 
-  <div class="block relative w-full mt-32">
+  <div class="block relative w-full mt-16 smW:mt-24 lg:mt-32">
     <div class="absolute top-0 left-0 flex justify-end w-full">
       <img src="/img/bg/small/Doors01.webp" alt="">
     </div>
     <div class="relative top-0 left-0">
       <FullSection>
         <div class="block w-full ">
-          <h3 class="text-accent text-6xl 2xl:text-8xl reveal">Zakázková výroba<br>
+          <h3 class="text-accent text-fluid-4xl 2xl:text-fluid-5xl reveal">Zakázková výroba<br>
             dveří na míru</h3>
-          <p class="mt-5 reveal text-xl uppercase">Kvalitní řemeslo ze dřeva, které vydrží generace.</p>
+          <p class="mt-5 reveal text-fluid-base uppercase">Kvalitní řemeslo ze dřeva, které vydrží generace.</p>
           <div class="grid grid-cols-12 w-full mt-10" data-vertical-scroll-line-container>
-            <div class="col-span-3 flex justify-center">
+            <!-- The decorative line only makes sense next to the two column desktop text, so it is left out
+                 of the single column phone composition. -->
+            <div class="hidden smW:col-span-3 smW:flex smW:justify-center">
               <VerticalScrollLine/>
             </div>
-            <div class="col-span-9 grid grid-cols-12 pt-20">
-              <div class="col-span-9">
+            <div class="col-span-12 grid grid-cols-12 pt-6 smW:col-span-9 smW:pt-20">
+              <div class="col-span-12 smW:col-span-9">
                 <p>Vyrábíme interiérové i&nbsp;vchodové dveře na míru. <br> Každý kus vzniká v&nbsp;naší dílně s&nbsp;důrazem
                   na detail, <br> funkčnost a&nbsp;dlouhou životnost. Spojujeme poctivé<br> stolařské řemeslo s&nbsp;moderními
                   technologiemi.</p>
-                <div class="block w-[250px] group mt-20">
+                <div class="block w-full max-w-[250px] group mt-12 lg:mt-20">
                   <Link :href="route(`front.doors`)">
                     <ButtonMain><span class="uppercase font-main">Katalog produktů</span></ButtonMain>
                   </Link>
                 </div>
-                <div class="block mt-32">
+                <div class="block mt-16 smW:mt-24 lg:mt-32">
                   <!-- The invisible copy keeps the original box height, so the shorter photo stays anchored by its bottom-left corner -->
                   <div class="relative w-full">
                     <img src="/img/bg/small/Doors02.webp" class="invisible w-full" alt="" aria-hidden="true">
@@ -154,15 +156,15 @@ const woodFactory = ref([
                 </div>
               </div>
 
-              <div class="col-span-12 grid grid-cols-12 mt-[150px]">
+              <div class="col-span-12 grid grid-cols-12 mt-16 smW:mt-[150px]">
                 <div class="col-span-12">
-                  <h3 class="text-accent text-6xl 2xl:text-8xl reveal">Vyberte si, co vám sedí</h3>
+                  <h3 class="text-accent text-fluid-4xl 2xl:text-fluid-5xl reveal">Vyberte si, co vám sedí</h3>
                   <p>Připravili jsme pro vás konfigurátor dveří</p>
                 </div>
-                <div class="col-span-6 relative -left-[180px] mt-20">
+                <div class="col-span-12 relative left-0 mt-10 smW:col-span-6 smW:-left-[90px] smW:mt-20 lg:-left-[180px]">
                   <img src="/img/bg/small/configurator-doors.webp" class="w-full" alt="">
                 </div>
-                <div class="col-span-4 relative -left-[140px] mt-10">
+                <div class="col-span-12 relative left-0 mt-6 smW:col-span-4 smW:-left-[70px] smW:mt-10 lg:-left-[140px]">
 
                   <p class="mt-10">Navrhněte si dveře přesně podle svých představ – od typu (interiérové, vchodové či
                     protipožární) až po každý detail provedení.
@@ -170,7 +172,7 @@ const woodFactory = ref([
                     prostorem.
                     Okamžitě tak získáte přehled o&nbsp;výsledné podobě i&nbsp;orientační ceně dveří, které vám opravdu
                     vyhovují.</p>
-                  <Link :href="route('front.configurator')" class="block w-[250px] group mt-20">
+                  <Link :href="route('front.configurator')" class="block w-full max-w-[250px] group mt-12 lg:mt-20">
                     <ButtonMain><span class="uppercase font-main">spustit konfigurátor</span></ButtonMain>
                   </Link>
                 </div>
@@ -185,11 +187,11 @@ const woodFactory = ref([
   </div>
 
   <FullSection>
-    <div class="block w-full lg:pb-10 my-20">
+    <div class="block w-full my-12 smW:my-16 lg:my-20 lg:pb-10">
       <div class="block">
-        <h3 class="text-accent text-6xl 2xl:text-8xl reveal">Zakázková výroba<br>
+        <h3 class="text-accent text-fluid-4xl 2xl:text-fluid-5xl reveal">Zakázková výroba<br>
           ze dřeva</h3>
-        <p class="mt-10 reveal text-xl uppercase">
+        <p class="mt-10 reveal text-fluid-base uppercase">
           Schody, obložení, kuchyňské linky,
           vestavěné skříně <br>i další prvky přesně podle prostoru a&nbsp;přání zákazníka.
         </p>

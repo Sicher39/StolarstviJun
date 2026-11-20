@@ -140,7 +140,7 @@ onBeforeUnmount((): void => {
             </div>
 
             <!-- The row is offset by one former link line, so the first link starts where the second (Waze) link used to. -->
-            <div class="flex flex-wrap items-baseline gap-x-8 gap-y-3 mt-[4.25rem]">
+            <div class="flex flex-wrap items-baseline gap-x-8 gap-y-3 mt-10 smW:mt-14 lg:mt-[4.25rem]">
                 <a
                     v-for="mapLink in mapLinks"
                     :key="mapLink.title"
@@ -153,7 +153,7 @@ onBeforeUnmount((): void => {
                 </a>
             </div>
 
-            <div class="block mt-24 lg:mt-40">
+            <div class="block mt-12 smW:mt-20 lg:mt-40">
                 <p class="leading-tight">{{ props.contact.contact_person }}</p>
                 <p class="leading-tight">
                     <a
@@ -183,7 +183,7 @@ onBeforeUnmount((): void => {
     -->
     <section
         ref="registrationSectionElement"
-        class="w-full mb-48 mt-24 lg:mt-[100px] xl:mt-[135px] 2xl:mt-[150px]"
+        class="w-full section-gap-bottom mt-12 smW:mt-20 lg:mt-[100px] xl:mt-[135px] 2xl:mt-[150px]"
     >
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,40vw)_minmax(0,1fr)] items-center gap-y-12">
             <img
@@ -193,7 +193,7 @@ onBeforeUnmount((): void => {
             >
 
             <!-- One shared reveal target: the four registration lines and the registry note always arrive together. -->
-            <div class="block px-2 lg:px-10 xl:pl-20 revealContact">
+            <div class="block px-5 smW:px-8 lg:px-10 xl:pl-20 revealContact">
                 <p
                     v-for="line in companyRegistrationLines"
                     :key="line"

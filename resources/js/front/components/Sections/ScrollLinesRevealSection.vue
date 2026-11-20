@@ -10,7 +10,7 @@ type ScrollLinesRevealSectionProps = {
 }
 
 const props = withDefaults(defineProps<ScrollLinesRevealSectionProps>(), {
-  containerClass: 'w-full pb-32',
+  containerClass: 'w-full pb-16 smW:pb-24 lg:pb-32',
   headingClass: 'w-full text-center leading-12 xl:leading-20 3xl:leading-24 text-4xl md:text-5xl xl:text-6xl 3xl:text-7xl'
 })
 

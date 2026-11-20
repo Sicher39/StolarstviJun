@@ -355,13 +355,13 @@ onBeforeUnmount(() => {
 <template>
     <section
         v-if="visibleReferences.length"
-        class="py-10 mb-32"
+        class="py-10 mb-16 smW:mb-24 lg:mb-32"
     >
         <div class="relative">
             <button
                 v-if="canScrollLeft"
                 type="button"
-                class="absolute left-4 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 items-center justify-center border border-white/70 bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60 cursor-pointer"
+                class="absolute left-4 top-1/2 z-30 hidden h-12 w-12 -translate-y-1/2 items-center justify-center border border-white/70 bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60 cursor-pointer lg:flex"
                 @click="scrollByAmount(-1)"
             >
                 <ArrowLeft />
@@ -370,7 +370,7 @@ onBeforeUnmount(() => {
             <button
                 v-if="canScrollRight"
                 type="button"
-                class="absolute right-4 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 items-center justify-center border border-white/70 bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60 cursor-pointer"
+                class="absolute right-4 top-1/2 z-30 hidden h-12 w-12 -translate-y-1/2 items-center justify-center border border-white/70 bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60 cursor-pointer lg:flex"
                 @click="scrollByAmount(1)"
             >
                 <ArrowLeft class="rotate-180" />
@@ -383,11 +383,11 @@ onBeforeUnmount(() => {
                     sliderCursorClass
                 ]"
             >
-                <div class="flex w-max gap-5 pl-5 pr-4 lg:gap-20 lg:pl-96">
+                <div class="flex w-max gap-4 pl-5 pr-4 smW:gap-8 smW:pl-8 lg:gap-20 lg:pl-96">
                     <ReferenceCard
                         v-for="reference in visibleReferences"
                         :key="reference.id"
-                        class="z-10 w-[150px] shrink-0 px-10 py-48 lg:w-[350px]"
+                        class="z-10 w-[200px] shrink-0 px-5 py-24 smW:py-32 lg:w-[350px] lg:px-10 lg:py-48"
                         :image="reference.images[0]?.url ?? ''"
                         :header="reference.header"
                         :note="reference.note"
@@ -398,7 +398,7 @@ onBeforeUnmount(() => {
                     <Link
                         v-if="hasMoreReferences"
                         :href="route('front.references')"
-                        class="group relative z-10 flex w-[150px] shrink-0 items-center justify-center overflow-hidden border border-white bg-primary/10 px-6 py-48 text-center lg:w-[350px]"
+                        class="group relative z-10 flex w-[200px] shrink-0 items-center justify-center overflow-hidden border border-white bg-primary/10 px-6 py-24 text-center smW:py-32 lg:w-[350px] lg:py-48"
                         @click.prevent="handleReferenceNavigation($event)"
                     >
                         <div

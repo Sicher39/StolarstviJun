@@ -93,27 +93,29 @@ onBeforeUnmount((): void => {
     <div ref="rootElement" class="relative w-full">
       <div class="relative pt-32 z-20 w-full">
         <div class="revealHeader">
-          <h1 class="text-white items-end lg:leading-[120px] text-5xl lg:text-8xl reveal-text">
+          <h1 class="text-fluid-5xl text-white items-end reveal-text">
             <slot name="header"/>
           </h1>
         </div>
 
         <div class="revealHeader">
-          <h2 class="text-white items-end lg:leading-[10px] text-5xl lg:text-8xl reveal-text mt-20">
+          <h2 class="text-fluid-4xl text-white items-end reveal-text mt-10 smW:mt-16 lg:mt-20">
             <slot name="title"/>
           </h2>
         </div>
 
-        <div v-if="button !== '' && link !== ''" class="block w-[250px] group">
+        <div v-if="button !== '' && link !== ''" class="block w-full max-w-[250px] group">
           <Link :href="route(`front.${props.link}`)">
             <ButtonMain>{{ props.button }}</ButtonMain>
           </Link>
         </div>
       </div>
 
-      <div class="absolute w-full top-[400px] -right-[250px] z-10 header-reveal-media">
+      <!-- On phones the photo stays in the document flow below the heading; from `lg` it is bled out
+           of the container to the right, which is the composition of the original design. -->
+      <div class="relative z-10 mt-12 w-full smW:mt-20 lg:absolute lg:top-[400px] lg:-right-[250px] lg:mt-0 header-reveal-media">
         <div class="flex w-full justify-center">
-          <img :src="`/img/bg/headers/${img}.webp`" class="w-[1080px]" alt="">
+          <img :src="`/img/bg/headers/${img}.webp`" class="w-full max-w-[1080px]" alt="">
         </div>
       </div>
     </div>

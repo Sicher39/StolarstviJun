@@ -186,36 +186,38 @@ onBeforeUnmount((): void => {
 
 <template>
   <FullSection>
-    <div ref="rootElement" class="relative w-full mb-48">
+    <div ref="rootElement" class="relative w-full section-gap-bottom">
       <div class="relative pt-32 z-20 w-full">
-        <h1 class="text-white items-end lg:leading-[120px] text-5xl lg:text-8xl revealHeader  reveal-text">
+        <h1 class="text-fluid-5xl text-white items-end revealHeader  reveal-text">
           <slot name="header"/>
         </h1>
 
         <!-- Opt-in (Contact): `revealHeaderGroup` turns the company name and the whole details slot into one
              commonly animated block instead of a per element cascade. -->
         <div :class="props.groupDetailsReveal ? 'revealHeaderGroup reveal-text' : ''">
-          <div class="block w-1/3 pl-20">
-            <h2 :class="['text-white text-4xl mt-20', props.groupDetailsReveal ? '' : 'revealHeader reveal-text']">
+          <div class="block w-full pl-0 smW:w-2/3 smW:pl-10 lg:w-1/3 lg:pl-20">
+            <h2 :class="['text-fluid-2xl text-white mt-10 smW:mt-14 lg:mt-20', props.groupDetailsReveal ? '' : 'revealHeader reveal-text']">
               <slot name="title"/>
             </h2>
           </div>
 
-          <div v-if="$slots.details" class="block w-full lg:w-1/3 pl-0 lg:pl-20">
+          <div v-if="$slots.details" class="block w-full pl-0 smW:pl-10 lg:w-1/3 lg:pl-20">
             <slot name="details"/>
           </div>
         </div>
 
-        <div v-if="button !== '' && link !== ''" class="block w-[250px] group mt-10">
+        <div v-if="button !== '' && link !== ''" class="block w-full max-w-[250px] group mt-10">
           <Link :href="route(`front.${props.link}`)">
             <ButtonMain><span class="uppercase font-main">{{ props.button }}</span></ButtonMain>
           </Link>
         </div>
       </div>
 
-      <div class="absolute w-full top-[300px] -right-[100px] z-10 revealHeader reveal">
-        <div class="flex w-full justify-end">
-          <img :src="`/img/bg/headers/${img}.webp`" class="w-[600px] aspect-auto mr-[300px]" alt="">
+      <!-- In the flow on phones (the photo simply follows the heading), bled to the right from `lg`,
+           which is the composition of the original design. -->
+      <div class="relative z-10 mt-10 w-full smW:mt-16 lg:absolute lg:top-[300px] lg:-right-[100px] lg:mt-0 revealHeader reveal">
+        <div class="flex w-full justify-start smW:justify-end">
+          <img :src="`/img/bg/headers/${img}.webp`" class="w-full max-w-[600px] lg:mr-[300px]" alt="">
         </div>
       </div>
     </div>

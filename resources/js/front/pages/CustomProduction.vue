@@ -126,12 +126,13 @@ const sections = ref([
   </SecondHeaderSection>
 
   <FullSection>
-    <div class="block mt-[300px] mb-48">
+    <div class="block section-gap-top section-gap-bottom">
       <div class="relative w-full">
-        <div class="absolute left-0 top-0 bottom-0 flex justify-center w-full">
+        <!-- Hidden in the single column phone layout, where the line would run through the text. -->
+        <div class="absolute left-0 top-0 bottom-0 hidden w-full justify-center smW:flex">
             <VerticalScrollLine/>
         </div>
-        <div class="block space-y-48">
+        <div class="block space-y-16 smW:space-y-28 lg:space-y-48">
           <TwoGridSection
               v-for="(section, i) in sections"
               :key="i"
@@ -150,8 +151,8 @@ const sections = ref([
   </ScrollLinesRevealSection>
 
   <FullSection v-if="hasReferences">
-    <div class="block my-48">
-      <h4 class="text-accent text-6xl 2xl:text-8xl reveal">Galerie <br> realizovaných zakázek,</h4>
+    <div class="block my-12 smW:my-24 lg:my-48">
+      <h4 class="text-accent text-fluid-4xl 2xl:text-fluid-5xl reveal">Galerie <br> realizovaných zakázek,</h4>
       <h5 class="mt-5">které vydrží roky, ne sezóny.</h5>
     </div>
     <div class="block w-full">

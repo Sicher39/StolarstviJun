@@ -24,15 +24,15 @@ const props = withDefaults(
 </script>
 
 <template>
-  <div class="grid grid-cols-2 gap-x-10 gap-y-20">
+  <div class="grid grid-cols-1 gap-y-10 smW:grid-cols-2 smW:gap-x-10 smW:gap-y-20">
     <div :class="['block',
           left ? 'order-1' : 'order-2']">
       <img :src="`/img/bg/small/${props.img}.webp`"  class="w-full reveal" :alt="`ilustrační obrázek k sekci ${title}`">
     </div>
     <div :class="['block',
           left ? 'order-2' : 'order-1']">
-      <h3 class="text-6xl text-accent reveal">{{ props.title }}</h3>
-      <div class="block pl-32 reveal">
+      <h3 class="text-fluid-3xl text-accent reveal">{{ props.title }}</h3>
+      <div class="block pl-0 reveal smW:pl-10 lg:pl-32">
         <p v-for="(text, i) in texts" :key="i"  :class="{ 'mt-5': i === 0 }">
           {{ text }}
         </p>
@@ -43,7 +43,7 @@ const props = withDefaults(
           <li v-for="(item, i) in lists" :key="i">{{ item }}</li>
         </ul>
       </div>
-      <div class="block group w-[350px] mt-10 pl-16 reveal">
+      <div class="block w-full max-w-[350px] group mt-10 pl-0 reveal smW:pl-10 lg:pl-16">
         <Link :href="route('front.contact')">
           <ButtonMain>nezávazná poptávka</ButtonMain>
         </Link>

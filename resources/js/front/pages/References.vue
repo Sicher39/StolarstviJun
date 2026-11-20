@@ -215,7 +215,7 @@ onBeforeUnmount((): void => {
         <div
             v-if="hasReferences"
             ref="stickyNavElement"
-            class="sticky z-30 w-full bg-dark mt-[300px]"
+            class="sticky z-30 w-full section-gap-top bg-dark"
             :style="{ top: `${headerOffset}px` }"
         >
             <FullSection>
@@ -230,14 +230,14 @@ onBeforeUnmount((): void => {
         <FullSection>
             <p
                 v-if="!hasReferences"
-                class="block mt-24 text-xl text-white lg:mt-48"
+                class="block mt-16 text-fluid-base text-white lg:mt-48"
             >
                 Zatím zde nejsou žádné publikované reference.
             </p>
 
             <div
                 v-else
-                class="block space-y-24 pt-24 lg:space-y-48 lg:pt-48"
+                class="block space-y-16 pt-16 smW:space-y-24 smW:pt-24 lg:space-y-48 lg:pt-48"
             >
                 <section
                     v-for="category in visibleCategories"
@@ -247,12 +247,12 @@ onBeforeUnmount((): void => {
                     class="block w-full"
                     :style="{ scrollMarginTop: `${stickyOffset}px` }"
                 >
-                    <h3 class="mb-6 text-3xl uppercase text-accent md:mb-10 md:text-5xl">
+                    <h3 class="mb-6 text-fluid-2xl uppercase text-accent smW:mb-8 smW:text-fluid-3xl md:mb-10">
                         {{ category.text }}
                     </h3>
 
                     <div
-                        class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-6 lg:gap-6"
+                        class="grid grid-cols-2 gap-3 smW:grid-cols-3 smW:gap-5 lg:grid-cols-6 lg:gap-6"
                     >
                         <ReferenceCard
                             v-for="card in category.cards"
@@ -273,6 +273,6 @@ onBeforeUnmount((): void => {
             ref="lightbox"
             :images="lightboxImages"
         />
-        <div class="mb-32" />
+        <div class="mb-16 smW:mb-24 lg:mb-32" />
     </div>
 </template>
