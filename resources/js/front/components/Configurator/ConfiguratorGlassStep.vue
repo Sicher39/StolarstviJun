@@ -9,16 +9,21 @@ const props = defineProps<{
   selectedGlassId: number | null
   vatRate: number
   // The step is a permanent part of the configurator menu, so it is opened even when nothing can be chosen yet:
-  // a configuration without a variant and a variant that is made without glazing both explain themselves here
-  // instead of the step disappearing from the navigation.
+  // a configuration without a variant, a variant that is made without glazing and a model that publishes no
+  // glass all explain themselves here instead of the step disappearing from the navigation.
   hasSelectedVariant: boolean
+  // Mirrors `has_glass` of the selected variant. It tells „this door is not glazed“ apart from „this door is
+  // glazed, but the chosen model publishes no glass yet“, so the empty state never explains the wrong reason.
+  variantHasGlass: boolean
 }>()
 
 const emit = defineEmits<{
   'update:selectedGlassId': [value: number | null]
 }>()
 
-// Only an empty list of glasses reaches this state, because a variant that cannot be glazed never publishes any.
+// The step always renders one of two things: the published glass options of the chosen variant, or a sentence
+// explaining why there is nothing to choose. Every reason has its own sentence, so an empty list is the only
+// signal the template needs.
 const emptyState = computed((): { title: string; hint: string } => {
   if (!props.hasSelectedVariant) {
     return {
@@ -27,9 +32,16 @@ const emptyState = computed((): { title: string; hint: string } => {
     }
   }
 
+  if (!props.variantHasGlass) {
+    return {
+      title: 'Sklo není pro tuto variantu k dispozici.',
+      hint: 'Vybraná varianta se vyrábí bez prosklení, proto se pro ni sklo nevybírá a v ceně se nepočítá. Pokračujte tlačítkem „Pokračovat“ na doplňky a poptávku.',
+    }
+  }
+
   return {
-    title: 'Sklo není pro tuto variantu k dispozici.',
-    hint: 'Vybraná varianta se vyrábí bez prosklení, proto se pro ni sklo nevybírá. Pokračujte tlačítkem „Pokračovat“ na doplňky a poptávku.',
+    title: 'Pro tuto variantu zatím není sklo v nabídce.',
+    hint: 'Vybraná varianta prosklení umožňuje, ale katalog k tomuto modelu neobsahuje žádný druh skla. Pokračujte bez skla nebo zvolte jinou variantu.',
   }
 })
 </script>

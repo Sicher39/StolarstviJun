@@ -1133,6 +1133,7 @@ const previewDoorMaskId = computed((): string => {
               :selected-glass-id="selectedGlassId"
               :vat-rate="vatRate"
               :has-selected-variant="selectedVariant !== null"
+              :variant-has-glass="glassAvailableForVariant"
               @update:selected-glass-id="selectGlass"
             />
             <ConfiguratorSurchargeStep
