@@ -55,6 +55,10 @@ class GlassTypeResource extends Resource
                     ->default(100)
                     ->minValue(0)
                     ->maxValue(100),
+                Toggle::make('blur_interior')
+                    ->label('Rozostřit pozadí za sklem')
+                    ->helperText('Zapnuto: místnost za sklem se v náhledu vykreslí rozostřená. Vypnuto: zůstane ostrá, což odpovídá čirému sklu.')
+                    ->default(true),
                 TextInput::make('price_modifier')
                     ->label('Příplatek bez DPH')
                     ->numeric()
@@ -113,6 +117,9 @@ class GlassTypeResource extends Resource
                     ->money('CZK', divideBy: 1)
                     ->alignEnd()
                     ->sortable(),
+                IconColumn::make('blur_interior')
+                    ->label('Rozostřené pozadí')
+                    ->boolean(),
                 IconColumn::make('active')
                     ->label('Aktivní')
                     ->boolean(),

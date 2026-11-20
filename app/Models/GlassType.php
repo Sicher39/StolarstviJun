@@ -18,6 +18,7 @@ class GlassType extends Model implements HasMedia
         'name',
         'code',
         'opacity',
+        'blur_interior',
         'price_modifier',
         'active',
     ];
@@ -47,6 +48,7 @@ class GlassType extends Model implements HasMedia
     {
         return [
             'opacity' => 'integer',
+            'blur_interior' => 'boolean',
             'price_modifier' => 'decimal:2',
             'active' => 'boolean',
         ];

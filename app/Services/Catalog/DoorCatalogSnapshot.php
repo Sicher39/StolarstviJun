@@ -78,6 +78,7 @@ class DoorCatalogSnapshot
             'name',
             'code',
             'opacity',
+            'blur_interior',
             'price_modifier',
             'active',
             'created_at',

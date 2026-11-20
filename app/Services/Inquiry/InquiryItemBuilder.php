@@ -137,6 +137,9 @@ class InquiryItemBuilder
                 'name' => $glassType->name,
                 'code' => $glassType->code,
                 'opacity' => $glassType->opacity,
+                // The illustration of the item is drawn from the snapshot, so the blur of the room behind the
+                // glass is stored with it: a later change of the catalog must not redraw a sent request.
+                'blur_interior' => $glassType->blur_interior,
                 'price_modifier' => (float) $glassType->price_modifier,
             ] : null,
             'surcharges' => $surcharges

@@ -203,6 +203,18 @@ export const glassOpacityFraction = (glass: GlassOption | null): number => {
   return typeof opacity === 'number' && !Number.isNaN(opacity) ? Math.min(Math.max(opacity / 100, 0), 1) : 1
 }
 
+// Whether the room behind the selected glass is drawn blurred. The catalog decides it per glass, so the
+// configurator and the item previews of the request read the same flag. A glass frozen into a saved item by
+// an older payload carries no flag at all; it keeps the rule that was in force when it was stored, where
+// every glass but the clear one was drawn with a blurred interior.
+export const glassBlursInterior = (glass: GlassOption | null): boolean => {
+  if (glass === null) {
+    return false
+  }
+
+  return glass.blur_interior ?? (glass.code !== 'cire-sklo')
+}
+
 export const swatchStyle = (url: string | null, type: 'decor' | 'glass'): CSSProperties => {
   if (!url) {
     return {}

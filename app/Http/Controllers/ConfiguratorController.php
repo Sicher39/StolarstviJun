@@ -98,6 +98,7 @@ class ConfiguratorController extends Controller
                             'name' => $glass->name,
                             'code' => $glass->code,
                             'opacity' => $glass->opacity,
+                            'blur_interior' => $glass->blur_interior,
                             'price_modifier' => (float) $glass->price_modifier,
                             'texture_image_url' => $this->mediaUrl($glass, 'texture_image'),
                             'preview_image_url' => $this->mediaUrl($glass, 'preview_image'),

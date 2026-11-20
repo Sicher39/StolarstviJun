@@ -32,6 +32,7 @@ import {
   formatItemCount,
   formatPieceCount,
   formatPrice,
+  glassBlursInterior,
   glassOpacityFraction,
   itemLineTotal,
   priceWithVat as calculatePriceWithVat,
@@ -253,7 +254,7 @@ const previewSvgIdBase = computed((): string => {
 const selectedGlassImageUrl = computed((): string | null => selectedGlass.value?.texture_image_url ?? null)
 const glassLayerImageUrl = computed((): string | null => selectedGlassImageUrl.value)
 const useBlurredInterior = computed((): boolean => {
-  return selectedGlass.value !== null && selectedGlass.value.code !== 'cire-sklo'
+  return glassBlursInterior(selectedGlass.value)
 })
 
 const selectedGlassOpacity = computed((): number => glassOpacityFraction(selectedGlass.value))
@@ -948,11 +949,13 @@ const previewGlassImageUrl = computed((): string | null => {
 const previewGlassOpacity = computed((): number => {
   return previewedItem.value ? glassOpacityFraction(previewedItem.value.glass) : selectedGlassOpacity.value
 })
-// Mirrors the rule of the open configuration: every glass but the clear one is shown with a blurred interior.
+// The room of the preview follows the glass of the drawn item. Without a selected item the open
+// configuration is drawn, so its glass decides; the flag itself is read from the same helper in
+// both cases.
 const previewUseBlurredInterior = computed((): boolean => {
-  const glass = previewedItem.value?.glass
+  const item = previewedItem.value
 
-  return glass === undefined ? useBlurredInterior.value : glass !== null && glass.code !== 'cire-sklo'
+  return item === null ? useBlurredInterior.value : glassBlursInterior(item.glass)
 })
 const previewCanRenderDecorLayer = computed((): boolean => {
   if (!previewedItem.value) {

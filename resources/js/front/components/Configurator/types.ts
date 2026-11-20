@@ -70,6 +70,12 @@ export interface GlassOption {
   name: string
   code: string
   opacity: number
+  /**
+   * Whether the room behind the glass is drawn blurred. The catalog decides it, so the flag wins over the
+   * legacy rule that only knew the clear glass. A glass frozen into a saved item by a payload captured
+   * before the flag existed does not carry it, so readers go through `glassBlursInterior()`.
+   */
+  blur_interior?: boolean
   price_modifier: number
   texture_image_url: string | null
   preview_image_url: string | null

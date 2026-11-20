@@ -101,6 +101,12 @@ const roomBehindGlassUrl = computed((): string | null => {
         <rect v-if="selectedFloor?.texture_image_url && previewScene.floor_mask_url" x="0" y="0" :width="sceneWidth" :height="sceneHeight" :fill="`url(#${floorTexturePatternId})`" :mask="`url(#${floorMaskId})`" />
         <image v-if="previewScene.scene_base_url" :href="previewScene.scene_base_url" :width="sceneWidth" :height="sceneHeight" preserveAspectRatio="none" />
 
+        <!-- The depth of the opening goes first: it carries the reveal edges and the shadow of the passage, and
+             the room behind the glass has to stay the topmost layer of the opening. Drawn above it, a depth
+             asset that paints anything opaque inside the opening would hide the room - and with it the sharp
+             or blurred interior the visitor selects through the glass. -->
+        <image v-if="previewScene.doorway_depth_url" :href="previewScene.doorway_depth_url" :width="sceneWidth" :height="sceneHeight" preserveAspectRatio="none" />
+
         <svg
           v-if="roomBehindGlassUrl && previewScene.doorway_mask_url"
           :x="doorX"
@@ -117,8 +123,6 @@ const roomBehindGlassUrl = computed((): string | null => {
           </defs>
           <image :href="roomBehindGlassUrl" :width="doorCanvasWidth" :height="doorCanvasHeight" preserveAspectRatio="none" :mask="`url(#${doorwayMaskId})`" />
         </svg>
-
-        <image v-if="previewScene.doorway_depth_url" :href="previewScene.doorway_depth_url" :width="sceneWidth" :height="sceneHeight" preserveAspectRatio="none" />
 
         <ConfiguratorDoorLayers
           v-if="canRenderDecorLayer && selectedDecorImageUrl && selectedVariant?.door_mask_url"
