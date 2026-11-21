@@ -191,7 +191,7 @@ const woodFactory = ref([
     </div>
 
     <FullSection>
-        <div class="block w-full  my-12 smW:my-16 lg:my-20 lg:pb-10 mt-95 lg:-mt-96">
+        <div class="block w-full  my-12 smW:my-16 lg:my-20 lg:pb-10 mt-95 lg:-mt-3">
             <div class="block">
                 <h3 class="text-accent text-fluid-4xl 2xl:text-fluid-5xl reveal">Zakázková výroba<br class="hidden lg:block">
                     ze dřeva</h3>
