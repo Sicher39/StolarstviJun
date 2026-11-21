@@ -28,7 +28,7 @@ const sections = computed(() =>
 
 <template>
   <div
-    class="grid w-full grid-cols-1 py-16 smW:grid-cols-2 smW:py-24 lg:grid-cols-4 lg:grid-rows-[auto_auto] lg:py-32 reveal"
+    class="grid w-full grid-cols-1 lg:py-16 smW:grid-cols-2 smW:py-24 lg:grid-cols-4 lg:grid-rows-[auto_auto] lg:py-32 reveal"
   >
     <div class="px-3 py-5 smW:col-span-2 lg:col-span-1 lg:row-span-2">
       <p>{{ sectionHeader }}</p>

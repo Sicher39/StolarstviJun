@@ -131,7 +131,7 @@ const woodFactory = ref([
                     alt=""
             />
         </div>
-        <div class="relative top-0 left-0 lg:-top-20">
+        <div class="relative top-[400px] lg:top-0 left-0 lg:-top-20">
             <FullSection>
                 <div class="block w-full">
                     <h3 class="text-accent text-fluid-4xl 2xl:text-fluid-5xl reveal">Zakázková výroba<br>
@@ -144,8 +144,8 @@ const woodFactory = ref([
                         </div>
                         <div class="col-span-11 grid grid-cols-12 xl:pt-20 smW:mt-10 md:mt-0">
                             <div class="col-span-12 lg:col-span-11 block mt-10 2xl:mt-1">
-                                <p>Vyrábíme interiérové i&nbsp;vchodové dveře na míru. <br> Každý kus vzniká v&nbsp;naší dílně s&nbsp;důrazem
-                                    na detail, <br> funkčnost a&nbsp;dlouhou životnost. Spojujeme poctivé<br> stolařské řemeslo s&nbsp;moderními
+                                <p>Vyrábíme interiérové i&nbsp;vchodové dveře na míru. <br class="hidden lg:block"> Každý kus vzniká v&nbsp;naší dílně s&nbsp;důrazem
+                                    na detail, <br class="hidden lg:block"> funkčnost a&nbsp;dlouhou životnost. Spojujeme poctivé<br class="hidden lg:block"> stolařské řemeslo s&nbsp;moderními
                                     technologiemi.</p>
                                 <div class="block w-full max-w-[250px] group mt-12 lg:mt-20">
                                     <Link :href="route(`front.doors`)">
@@ -167,7 +167,7 @@ const woodFactory = ref([
 
                                         </div>
 
-                                        <div class="grid grid-cols-2">
+                                        <div class="grid grid-cols-1 lg:grid-cols-2">
                                             <div class="mt-10">
                                                 <img src="/img/bg/small/configurator-doors.webp" class="w-full" alt="">
                                             </div>
@@ -191,13 +191,13 @@ const woodFactory = ref([
     </div>
 
     <FullSection>
-        <div class="block w-full my-12 smW:my-16 lg:my-20 lg:pb-10 -mt-96">
+        <div class="block w-full  my-12 smW:my-16 lg:my-20 lg:pb-10 mt-95 lg:-mt-96">
             <div class="block">
-                <h3 class="text-accent text-fluid-4xl 2xl:text-fluid-5xl reveal">Zakázková výroba<br>
+                <h3 class="text-accent text-fluid-4xl 2xl:text-fluid-5xl reveal">Zakázková výroba<br class="hidden lg:block">
                     ze dřeva</h3>
                 <p class="mt-10 reveal text-fluid-base uppercase">
                     Schody, obložení, kuchyňské linky,
-                    vestavěné skříně <br>i další prvky přesně podle prostoru a&nbsp;přání zákazníka.
+                    vestavěné skříně <br class="hidden lg:block">i další prvky přesně podle prostoru a&nbsp;přání zákazníka.
                 </p>
             </div>
             <div class="block">
