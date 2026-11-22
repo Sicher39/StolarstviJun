@@ -196,7 +196,7 @@ onBeforeUnmount((): void => {
 
 <template>
     <div class="block w-full">
-        <SecondHeaderSection img="references">
+        <SecondHeaderSection img="references" reserve-media-space>
             <template v-slot:header>
                 Galerie <br />
                 realizovaných <br /> zakázek
@@ -211,11 +211,17 @@ onBeforeUnmount((): void => {
           The icon bar stays sticky below the fixed site header and scrolls to its category strip.
           Without a single published reference there is nothing to navigate to, so the whole bar is
           left out and only the empty state below is rendered.
+
+          On `lg` the hero photo is offset 300px below the heading and bleeds past the right edge of the
+          content, so with the original absolute placement it overlaps the area where this bar lives and
+          the icons disappear behind it on shorter / narrower desktop viewports. `reserve-media-space`
+          keeps the photo inside the header flow instead, so the header always ends at the rendered bottom
+          of the photo and the bar starts below it, while the photo keeps the composition of the design.
         -->
         <div
             v-if="hasReferences"
             ref="stickyNavElement"
-            class="sticky z-30 w-full section-gap-top bg-dark"
+            class="sticky z-30 w-full bg-dark"
             :style="{ top: `${headerOffset}px` }"
         >
             <FullSection>

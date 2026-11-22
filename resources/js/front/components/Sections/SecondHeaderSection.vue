@@ -2,7 +2,7 @@
 import FullSection from "@/front/components/Sections/FullSection.vue";
 import ButtonMain from "@/front/components/Buttons/ButtonMain.vue";
 import {Link} from "@inertiajs/vue3";
-import {nextTick, onBeforeUnmount, onMounted, ref} from "vue";
+import {computed, nextTick, onBeforeUnmount, onMounted, ref} from "vue";
 import {gsap} from "gsap";
 import {ScrollTrigger} from "gsap/ScrollTrigger";
 
@@ -12,13 +12,29 @@ const props = withDefaults(
       button?: string
       link?: string
       groupDetailsReveal?: boolean
+      reserveMediaSpace?: boolean
     }>(),
     {
       img: '',
       button: '',
       link: '',
-      groupDetailsReveal: false
+      groupDetailsReveal: false,
+      reserveMediaSpace: false
     }
+)
+
+// On `lg` the photo sits 300px below the top of the heading and bleeds 100px past the right edge of the
+// container. By default it is absolutely positioned, so it is out of the flow and may cover whatever
+// follows the header - that is the original composition of the header pages.
+// With `reserveMediaSpace` the very same position is produced by a stacked grid: the heading and the photo
+// share one cell, `self-start` keeps the photo at its intrinsic height and `pt-[300px]` (padding is part of
+// the box) makes the header itself measure 300px plus the rendered height of the photo. Anything rendered
+// after the header - e.g. the sticky category bar of the Catalog - therefore always starts below the photo,
+// without a hard coded height that would break when the photo or its responsive width changes.
+const mediaLayoutClasses = computed<string>(() =>
+    props.reserveMediaSpace
+        ? 'lg:col-start-1 lg:row-start-1 lg:mt-0 lg:w-auto lg:-mr-[100px] lg:self-start lg:pt-[300px]'
+        : 'lg:absolute lg:top-[300px] lg:-right-[100px] lg:mt-0'
 )
 
 // Cascade timing: the reveal of one element starts after the reveal of the previous one (DOM order),
@@ -186,8 +202,15 @@ onBeforeUnmount((): void => {
 
 <template>
   <FullSection>
-    <div ref="rootElement" class="relative w-full section-gap-bottom">
-      <div class="relative pt-32 z-20 w-full">
+    <div
+      ref="rootElement"
+      class="relative w-full section-gap-bottom"
+      :class="{ 'lg:grid': props.reserveMediaSpace }"
+    >
+      <div
+        class="relative pt-32 z-20 w-full"
+        :class="{ 'lg:col-start-1 lg:row-start-1': props.reserveMediaSpace }"
+      >
         <h1 class="text-fluid-5xl text-white items-end revealHeader  reveal-text">
           <slot name="header"/>
         </h1>
@@ -213,9 +236,10 @@ onBeforeUnmount((): void => {
         </div>
       </div>
 
-      <!-- In the flow on phones (the photo simply follows the heading), bled to the right from `lg`,
-           which is the composition of the original design. -->
-      <div class="relative z-10 mt-10 w-full smW:mt-16 lg:absolute lg:top-[300px] lg:-right-[100px] lg:mt-0 revealHeader reveal">
+      <!-- In the flow on phones (the photo simply follows the heading), offset and bled to the right from
+           `lg`, which is the composition of the original design. See `mediaLayoutClasses` for how the
+           desktop placement is produced when the header has to reserve the space of the photo. -->
+      <div :class="['relative z-10 mt-10 w-full smW:mt-16 revealHeader reveal', mediaLayoutClasses]">
         <div class="flex w-full justify-start smW:justify-end">
           <img :src="`/img/bg/headers/${img}.webp`" class="w-full max-w-[600px] lg:mr-[300px]" alt="">
         </div>

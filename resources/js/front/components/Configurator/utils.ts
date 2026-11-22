@@ -62,8 +62,12 @@ export const formatSurchargePriceWithVat = (priceWithoutVat: number, vatRate: nu
 }
 
 // The size and the opening of a variant as one line, without the catalogue code. A variant whose record
-// publishes no size is named instead of printed as a zero measurement, so the line is never empty.
-export const variantSpecification = (variant: DoorVariant): string => {
+// publishes no size is named instead of printed as a zero measurement, so the line is never empty. Only
+// the four published fields are read, so the public catalog, which lists the same door without the render
+// masks, captions its cards with the same helper.
+export const variantSpecification = (
+  variant: Pick<DoorVariant, 'width' | 'height' | 'opening_direction' | 'opening_type'>
+): string => {
   const size = variant.width && variant.height ? `${variant.width} × ${variant.height} mm` : 'Rozměr na dotaz'
   const details = [variant.opening_type, variant.opening_direction].filter(Boolean).join(' / ')
 
