@@ -3,9 +3,11 @@
 namespace App\Services\Inquiry;
 
 use App\Models\Decor;
+use App\Models\DoorFrame;
 use App\Models\DoorModel;
 use App\Models\DoorVariant;
 use App\Models\GlassType;
+use App\Models\Hardware;
 use App\Models\InquiryItem;
 use App\Models\Surcharge;
 use App\Services\VatCalculator;
@@ -18,13 +20,15 @@ use Illuminate\Validation\ValidationException;
  * The browser sends ids only. Everything that ends up in the quote - the names, the price per piece,
  * the line price and the snapshot - is read from the database here, so a tampered request can change
  * neither the price nor the composition name of the item. The whole selection is validated against the
- * catalog: the variant has to belong to the model, the decor, the glass and the surcharges have to be
- * active and attached to the model, and a variant without glass refuses a glass at all.
+ * catalog: the variant has to belong to the model, the decor, the glass, the frame, the hardware and the
+ * surcharges have to be active and attached to the model, and a variant without glass refuses a glass at
+ * all.
  *
  * The price of one piece is the documented formula
  *
  *   base_price_without_vat of the model + price_modifier of the variant + price_modifier of the decor
- *   + price_modifier of the glass + sum of price_without_vat of the surcharges
+ *   + price_modifier of the glass + price_without_vat of the frame + price_without_vat of the hardware
+ *   + sum of price_without_vat of the surcharges
  *
  * and the line price is that amount times the quantity. VAT is applied to the rounded line price, so
  * the sum of the items always equals the recap of the inquiry to the cent.
@@ -42,6 +46,8 @@ class InquiryItemBuilder
      *     door_variant: DoorVariant,
      *     decor: Decor|null,
      *     glass_type: GlassType|null,
+     *     door_frame: DoorFrame|null,
+     *     hardware: Hardware|null,
      *     surcharges: Collection<int, Surcharge>,
      *     attributes: array{
      *         name: string,
@@ -50,6 +56,8 @@ class InquiryItemBuilder
      *         door_variant_id: int,
      *         decor_id: int|null,
      *         glass_type_id: int|null,
+     *         door_frame_id: int|null,
+     *         hardware_id: int|null,
      *         unit_price_without_vat: float,
      *         price_without_vat: float,
      *         price_with_vat: float,
@@ -85,11 +93,14 @@ class InquiryItemBuilder
 
         $decor = $this->resolveDecor($doorModel, $selection['decor_id'] ?? null, $attributePrefix);
         $glassType = $this->resolveGlassType($doorModel, $doorVariant, $selection['glass_type_id'] ?? null, $attributePrefix);
+        // The accessories of the „Ostatní“ step are optional, so a request without them is priced exactly as before.
+        $doorFrame = $this->resolveDoorFrame($doorModel, $selection['door_frame_id'] ?? null, $attributePrefix);
+        $hardware = $this->resolveHardware($doorModel, $selection['hardware_id'] ?? null, $attributePrefix);
         $surcharges = $this->resolveSurcharges($doorModel, $selection['surcharge_ids'] ?? [], $attributePrefix);
 
         $quantity = $this->quantity($selection['quantity'] ?? 1);
 
-        $priceParts = $this->priceParts($doorModel, $doorVariant, $decor, $glassType, $surcharges);
+        $priceParts = $this->priceParts($doorModel, $doorVariant, $decor, $glassType, $doorFrame, $hardware, $surcharges);
         $unitPriceWithoutVat = $this->unitPrice($priceParts);
 
         $priceWithoutVat = round($unitPriceWithoutVat * $quantity, 2);
@@ -142,6 +153,20 @@ class InquiryItemBuilder
                 'blur_interior' => $glassType->blur_interior,
                 'price_modifier' => (float) $glassType->price_modifier,
             ] : null,
+            // The accessories are stored with the name and the net price that were valid when the inquiry was
+            // sent, so the price breakdown of an old request can still be explained line by line.
+            'door_frame' => $doorFrame ? [
+                'id' => $doorFrame->id,
+                'name' => $doorFrame->name,
+                'code' => $doorFrame->code,
+                'price_without_vat' => (float) $doorFrame->price_without_vat,
+            ] : null,
+            'hardware' => $hardware ? [
+                'id' => $hardware->id,
+                'name' => $hardware->name,
+                'code' => $hardware->code,
+                'price_without_vat' => (float) $hardware->price_without_vat,
+            ] : null,
             'surcharges' => $surcharges
                 ->map(fn (Surcharge $surcharge): array => [
                     'id' => $surcharge->id,
@@ -165,6 +190,8 @@ class InquiryItemBuilder
             'door_variant' => $doorVariant,
             'decor' => $decor,
             'glass_type' => $glassType,
+            'door_frame' => $doorFrame,
+            'hardware' => $hardware,
             'surcharges' => $surcharges,
             'attributes' => [
                 'name' => $configuration['name'],
@@ -175,6 +202,8 @@ class InquiryItemBuilder
                 'door_variant_id' => $doorVariant->id,
                 'decor_id' => $decor?->id,
                 'glass_type_id' => $glassType?->id,
+                'door_frame_id' => $doorFrame?->id,
+                'hardware_id' => $hardware?->id,
                 'unit_price_without_vat' => $unitPriceWithoutVat,
                 'price_without_vat' => $priceWithoutVat,
                 'price_with_vat' => $priceWithVat,
@@ -195,7 +224,8 @@ class InquiryItemBuilder
      * submitted one:
      *
      *   base_price_without_vat of the model + price_modifier of the variant + price_modifier of the decor
-     *   + price_modifier of the glass + sum of price_without_vat of the surcharges
+     *   + price_modifier of the glass + price_without_vat of the frame + price_without_vat of the hardware
+     *   + sum of price_without_vat of the surcharges
      *
      * @param  list<int>  $surchargeIds
      */
@@ -205,6 +235,8 @@ class InquiryItemBuilder
         ?int $decorId,
         ?int $glassTypeId,
         array $surchargeIds = [],
+        ?int $doorFrameId = null,
+        ?int $hardwareId = null,
     ): ?float {
         if ($doorModelId === null || $doorVariantId === null) {
             return null;
@@ -237,7 +269,17 @@ class InquiryItemBuilder
             ? collect()
             : $doorModel->surcharges()->whereIn('surcharges.id', $surchargeIds)->get();
 
-        return $this->unitPrice($this->priceParts($doorModel, $doorVariant, $decor, $glassType, $surcharges));
+        // An accessory that is not offered for the model any more adds nothing, exactly like a decor or a glass
+        // the model does not carry: the administrator can still recalculate a quote of a changed catalog.
+        $doorFrame = $doorFrameId === null
+            ? null
+            : $doorModel->frames()->whereKey($doorFrameId)->first();
+
+        $hardware = $hardwareId === null
+            ? null
+            : $doorModel->hardware()->whereKey($hardwareId)->first();
+
+        return $this->unitPrice($this->priceParts($doorModel, $doorVariant, $decor, $glassType, $doorFrame, $hardware, $surcharges));
     }
 
     /**
@@ -249,7 +291,8 @@ class InquiryItemBuilder
      *
      * A part is kept even when its amount is zero: the snapshot records that the customer selected the
      * option, while the presentation decides whether a zero amount is worth showing. The variant is
-     * always part of the price, the decor, the glass and the surcharges only when they were selected.
+     * always part of the price, the decor, the glass, the frame, the hardware and the surcharges only when
+     * they were selected.
      *
      * @param  Collection<int, Surcharge>  $surcharges
      * @return list<array{key: string, label: string, name: string|null, code: string|null, amount_without_vat: float}>
@@ -259,6 +302,8 @@ class InquiryItemBuilder
         DoorVariant $doorVariant,
         ?Decor $decor,
         ?GlassType $glassType,
+        ?DoorFrame $doorFrame,
+        ?Hardware $hardware,
         Collection $surcharges,
     ): array {
         $parts = [
@@ -295,6 +340,26 @@ class InquiryItemBuilder
                 'name' => $glassType->name,
                 'code' => $glassType->code,
                 'amount_without_vat' => (float) $glassType->price_modifier,
+            ];
+        }
+
+        if ($doorFrame) {
+            $parts[] = [
+                'key' => 'door_frame',
+                'label' => 'Zárubeň',
+                'name' => $doorFrame->name,
+                'code' => $doorFrame->code,
+                'amount_without_vat' => (float) $doorFrame->price_without_vat,
+            ];
+        }
+
+        if ($hardware) {
+            $parts[] = [
+                'key' => 'hardware',
+                'label' => 'Kování',
+                'name' => $hardware->name,
+                'code' => $hardware->code,
+                'amount_without_vat' => (float) $hardware->price_without_vat,
             ];
         }
 
@@ -397,6 +462,58 @@ class InquiryItemBuilder
         }
 
         return $glassType;
+    }
+
+    /**
+     * The frame of the „Ostatní“ step is optional and, like every other option, offered only to the models
+     * it was attached to. A frame of another model is refused instead of being priced silently, so the
+     * browser can not slip an accessory past the compatibility of the catalog.
+     *
+     * @throws ValidationException
+     */
+    private function resolveDoorFrame(DoorModel $doorModel, mixed $doorFrameId, string $attributePrefix): ?DoorFrame
+    {
+        if (! $doorFrameId) {
+            return null;
+        }
+
+        $doorFrame = DoorFrame::query()
+            ->whereKey($doorFrameId)
+            ->where('active', true)
+            ->first();
+
+        if (! $doorFrame || ! $doorModel->frames()->whereKey($doorFrame->id)->exists()) {
+            throw ValidationException::withMessages([
+                $attributePrefix.'door_frame_id' => 'Vybraná zárubeň není dostupná pro zvolený model.',
+            ]);
+        }
+
+        return $doorFrame;
+    }
+
+    /**
+     * The hardware of the „Ostatní“ step, validated exactly like the frame.
+     *
+     * @throws ValidationException
+     */
+    private function resolveHardware(DoorModel $doorModel, mixed $hardwareId, string $attributePrefix): ?Hardware
+    {
+        if (! $hardwareId) {
+            return null;
+        }
+
+        $hardware = Hardware::query()
+            ->whereKey($hardwareId)
+            ->where('active', true)
+            ->first();
+
+        if (! $hardware || ! $doorModel->hardware()->whereKey($hardware->id)->exists()) {
+            throw ValidationException::withMessages([
+                $attributePrefix.'hardware_id' => 'Vybrané kování není dostupné pro zvolený model.',
+            ]);
+        }
+
+        return $hardware;
     }
 
     /**

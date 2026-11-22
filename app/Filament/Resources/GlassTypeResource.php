@@ -29,6 +29,8 @@ class GlassTypeResource extends Resource
 
     protected static ?string $navigationLabel = 'Skla';
 
+    protected static ?int $navigationSort = 40;
+
     public static function getModelLabel(): string
     {
         return 'Sklo';

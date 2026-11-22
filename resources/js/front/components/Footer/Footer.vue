@@ -84,9 +84,9 @@ const registrationLines = computed<string[]>(() => {
     .map(([label, value]) => `${label}: ${value}`)
 })
 
-// The header navigation stays compact, so the configurator is added to the footer menu only. All other
-// items come from the shared navigation definition, so the footer never drifts from the header.
-// The configurator is placed right after the contact item, i.e. as the last footer menu entry.
+// All items come from the shared navigation definition, so the footer never drifts from the header.
+// The header shows the configurator as a standalone button, so the footer adds its own plain link and
+// places it right after the contact item, i.e. as the last footer menu entry.
 const footerMenuLinks = computed<NavLink[]>(() => {
   const links: NavLink[] = [...navLinks]
   const configuratorLink: NavLink = {

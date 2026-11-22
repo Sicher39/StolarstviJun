@@ -13,8 +13,8 @@ namespace App\Services\Inquiry;
  *
  * Four views are produced from the same snapshot:
  *
- *  - `itemLines()` describes what was selected for one configured door (model, variant, decor, glass and
- *    the names of the surcharges), without prices,
+ *  - `itemLines()` describes what was selected for one configured door (model, variant, decor, glass, the
+ *    frame and the hardware of the „Ostatní“ step and the names of the surcharges), without prices,
  *  - `priceBreakdownLines()` explains the price of one piece: the base price of the model and every part
  *    that was added to it, each with its name and its amount,
  *  - `itemPriceLines()` adds the price per piece and the line price of that door,
@@ -69,6 +69,10 @@ class InquirySnapshotPresenter
         $doorVariant = $this->section($configuration, 'door_variant');
         $decor = $this->section($configuration, 'decor');
         $glassType = $this->section($configuration, 'glass_type');
+        // An inquiry sent before the „Ostatní“ step existed has no accessory blocks at all; both lines are then
+        // empty and are left out, so an old record reads exactly as it always did.
+        $doorFrame = $this->section($configuration, 'door_frame');
+        $hardware = $this->section($configuration, 'hardware');
 
         return array_values(array_filter([
             $this->line('Model dveří', $this->text($doorModel['name'] ?? null)),
@@ -77,6 +81,8 @@ class InquirySnapshotPresenter
             $this->line('Směr otevírání', $this->text($doorVariant['opening_direction'] ?? null)),
             $this->line('Dekor', $this->namedCodeText($decor)),
             $this->line('Sklo', $this->glassText($glassType)),
+            $this->line('Zárubeň', $this->namedCodeText($doorFrame)),
+            $this->line('Kování', $this->namedCodeText($hardware)),
             $this->line('Příplatky', $this->surchargeText($configuration)),
         ]));
     }
@@ -89,8 +95,8 @@ class InquirySnapshotPresenter
      * the total. The lines add up to the price per piece that `itemPriceLines()` shows.
      *
      * A snapshot stored before the breakdown was written has no `price_breakdown` block; its parts are then
-     * read from the model, variant, decor, glass and surcharge blocks that it has always carried, so an old
-     * inquiry reads exactly like a new one.
+     * read from the model, variant, decor, glass, frame, hardware and surcharge blocks that it has always
+     * carried, so an old inquiry reads exactly like a new one.
      *
      * @param  array<string, mixed>|null  $configuration
      * @return list<array{label: string, value: string}>
@@ -300,9 +306,9 @@ class InquirySnapshotPresenter
      * same parts read from the blocks of the older snapshot.
      *
      * The older snapshot has no `price_breakdown`, but it has always kept the model, the variant, the decor,
-     * the glass and the surcharges with their price modifiers, which is exactly the data the breakdown
-     * describes. Reading them here means an inquiry sent before the breakdown existed is explained by the
-     * same lines as a new one.
+     * the glass, the frame, the hardware and the surcharges with their price modifiers, which is exactly the
+     * data the breakdown describes. Reading them here means an inquiry sent before the breakdown existed is
+     * explained by the same lines as a new one.
      *
      * @param  array<string, mixed>  $configuration
      * @return list<array{key?: mixed, label?: mixed, name?: mixed, code?: mixed, amount_without_vat?: mixed}>
@@ -319,6 +325,8 @@ class InquirySnapshotPresenter
         $doorVariant = $this->section($configuration, 'door_variant');
         $decor = $this->section($configuration, 'decor');
         $glassType = $this->section($configuration, 'glass_type');
+        $doorFrame = $this->section($configuration, 'door_frame');
+        $hardware = $this->section($configuration, 'hardware');
 
         $parts = [
             $this->pricePart('base_price', 'Základní cena dveří', null, null, $doorModel['base_price_without_vat'] ?? null),
@@ -351,6 +359,26 @@ class InquirySnapshotPresenter
                 $glassType['name'] ?? null,
                 $glassType['code'] ?? null,
                 $glassType['price_modifier'] ?? null,
+            );
+        }
+
+        if ($doorFrame !== []) {
+            $parts[] = $this->pricePart(
+                'door_frame',
+                'Zárubeň',
+                $doorFrame['name'] ?? null,
+                $doorFrame['code'] ?? null,
+                $doorFrame['price_without_vat'] ?? null,
+            );
+        }
+
+        if ($hardware !== []) {
+            $parts[] = $this->pricePart(
+                'hardware',
+                'Kování',
+                $hardware['name'] ?? null,
+                $hardware['code'] ?? null,
+                $hardware['price_without_vat'] ?? null,
             );
         }
 

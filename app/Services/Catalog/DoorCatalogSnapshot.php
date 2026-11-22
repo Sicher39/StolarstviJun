@@ -21,7 +21,37 @@ class DoorCatalogSnapshot
 {
     public const FORMAT = 'door-catalog-snapshot';
 
-    public const FORMAT_VERSION = 1;
+    /**
+     * Version written by the exporter. Version 2 adds the frame and hardware catalog, their ties to
+     * the door models, and the door model type.
+     */
+    public const FORMAT_VERSION = 2;
+
+    /**
+     * Versions this installation still reads. A bundle written before the accessories existed stays
+     * importable: it simply carries neither their tables nor the door model type, and the importer
+     * leaves those attributes untouched.
+     *
+     * @var list<int>
+     */
+    public const SUPPORTED_FORMAT_VERSIONS = [1, 2];
+
+    /**
+     * Tables and columns that only a version 2 bundle carries.
+     */
+    public const VERSION_2_TABLES = [
+        'door_frames',
+        'hardware',
+        'door_frame_door_model',
+        'door_model_hardware',
+    ];
+
+    /**
+     * @var array<string, list<string>>
+     */
+    public const VERSION_2_COLUMNS = [
+        'door_models' => ['type'],
+    ];
 
     public const MANIFEST_FILE = 'manifest.json';
 
@@ -39,6 +69,7 @@ class DoorCatalogSnapshot
             'name',
             'slug',
             'category',
+            'type',
             'description',
             'base_price_without_vat',
             'base_price_with_vat',
@@ -114,11 +145,45 @@ class DoorCatalogSnapshot
             'created_at',
             'updated_at',
         ],
+        'door_frames' => [
+            'id',
+            'name',
+            'code',
+            'price_without_vat',
+            'sort_order',
+            'active',
+            'created_at',
+            'updated_at',
+        ],
+        'hardware' => [
+            'id',
+            'name',
+            'code',
+            'price_without_vat',
+            'sort_order',
+            'active',
+            'created_at',
+            'updated_at',
+        ],
+        'door_frame_door_model' => [
+            'id',
+            'door_frame_id',
+            'door_model_id',
+            'created_at',
+            'updated_at',
+        ],
+        'door_model_hardware' => [
+            'id',
+            'door_model_id',
+            'hardware_id',
+            'created_at',
+            'updated_at',
+        ],
     ];
 
     /**
-     * Media collections per owner type. Only these collections of these four models travel with the
-     * snapshot; inquiries, preview scenes and every other media owner stay untouched.
+     * Media collections per owner type. Only these collections of these catalog models travel with
+     * the snapshot; inquiries, preview scenes and every other media owner stay untouched.
      *
      * @var array<string, list<string>>
      */
@@ -139,6 +204,7 @@ class DoorCatalogSnapshot
         ],
         'decor' => ['texture_image', 'preview_image'],
         'glass_type' => ['texture_image', 'preview_image'],
+        'hardware' => ['image'],
     ];
 
     /**
@@ -155,6 +221,10 @@ class DoorCatalogSnapshot
         'decor_door_model' => 'vazba dekor–model',
         'door_model_glass_type' => 'vazba model–sklo',
         'door_model_surcharge' => 'vazba model–příplatek',
+        'door_frames' => 'zárubeň',
+        'hardware' => 'kování',
+        'door_frame_door_model' => 'vazba zárubeň–model',
+        'door_model_hardware' => 'vazba model–kování',
         'media' => 'média',
     ];
 
@@ -301,14 +371,21 @@ class DoorCatalogSnapshot
     }
 
     /**
+     * Rows of one catalog table. An older bundle does not carry the tables added in version 2, so a
+     * missing table reads as no rows instead of failing: the importer then simply has nothing to do.
+     *
      * @return list<array<string, mixed>>
      */
     public function rows(string $table): array
     {
-        /** @var list<array<string, mixed>> $rows */
-        $rows = $this->manifest['tables'][$table];
+        $rows = $this->manifest['tables'][$table] ?? [];
 
-        return $rows;
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        /** @var list<array<string, mixed>> $rows */
+        return array_values($rows);
     }
 
     /**
@@ -340,11 +417,13 @@ class DoorCatalogSnapshot
             throw DoorCatalogSnapshotException::invalid('Soubor manifest.json není snapshot katalogu dveří.');
         }
 
-        if ((int) ($manifest['format_version'] ?? 0) !== self::FORMAT_VERSION) {
+        $version = (int) ($manifest['format_version'] ?? 0);
+
+        if (! in_array($version, self::SUPPORTED_FORMAT_VERSIONS, true)) {
             throw DoorCatalogSnapshotException::invalid(sprintf(
-                'Nepodporovaná verze snapshotu %s, tento příkaz umí verzi %d.',
+                'Nepodporovaná verze snapshotu %s, tento příkaz umí verze %s.',
                 (string) ($manifest['format_version'] ?? '?'),
-                self::FORMAT_VERSION,
+                implode(', ', self::SUPPORTED_FORMAT_VERSIONS),
             ));
         }
 
@@ -354,7 +433,7 @@ class DoorCatalogSnapshot
             throw DoorCatalogSnapshotException::invalid('Soubor manifest.json neobsahuje tabulky katalogu.');
         }
 
-        foreach (self::COLUMNS as $table => $columns) {
+        foreach (self::columnsForVersion($version) as $table => $columns) {
             $rows = $tables[$table] ?? null;
 
             if (! is_array($rows)) {
@@ -387,6 +466,32 @@ class DoorCatalogSnapshot
         foreach ($media as $entry) {
             self::assertMediaEntry($entry);
         }
+    }
+
+    /**
+     * The columns one table must carry in a bundle of the given version. A version 1 bundle was
+     * written before the frame and hardware catalog existed, so it has neither their tables nor the
+     * door model type; requiring them would make every earlier transfer unimportable.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function columnsForVersion(int $version): array
+    {
+        $columns = self::COLUMNS;
+
+        if ($version >= 2) {
+            return $columns;
+        }
+
+        foreach (self::VERSION_2_TABLES as $table) {
+            unset($columns[$table]);
+        }
+
+        foreach (self::VERSION_2_COLUMNS as $table => $addedColumns) {
+            $columns[$table] = array_values(array_diff($columns[$table], $addedColumns));
+        }
+
+        return $columns;
     }
 
     private static function assertMediaEntry(mixed $entry): void

@@ -3,7 +3,7 @@ import { computed } from 'vue'
 
 import ConfiguratorDoorLayers from './ConfiguratorDoorLayers.vue'
 import type { InquiryItemDraft } from './types'
-import { doorCanvasSize, glassOpacityFraction } from './utils'
+import { decorTextureIsHorizontal, doorCanvasSize, glassOpacityFraction } from './utils'
 
 /**
  * The illustration of one request item: the door of that item only, composed from the model, the variant
@@ -32,6 +32,7 @@ const glassOpacity = computed((): number => glassOpacityFraction(props.item.glas
         class="absolute inset-0 h-full w-full"
         :variant="item.variant"
         :decor-image-url="decorImageUrl"
+        :decor-texture-is-horizontal="decorTextureIsHorizontal(item.decor)"
         :glass-image-url="glassImageUrl"
         :glass-opacity="glassOpacity"
         :mask-id-base="idBase"

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\Compliance\ConsentController;
 use App\Http\Controllers\Compliance\CookieConfigController;
 use App\Http\Controllers\ConfiguratorController;
@@ -21,6 +22,7 @@ Route::middleware('vue')->name('front.')->group(function () {
     Route::post('/konfigurator/poptavka', ConfiguratorInquiryController::class)->name('configurator.inquiry.store');
     Route::get('/zakazkova-vyroba', CustomProductionController::class)->name('customProduction');
     Route::get('/reference', ReferencesController::class)->name('references');
+    Route::get('/katalog', CatalogController::class)->name('catalog');
     Route::get('/kontakt', ContactController::class)->name('contact');
     Route::get('/ochrana-osobnich-udaju', LegalDocumentController::class)->name('gdpr');
     // The cookie policy has its own page; the privacy page keeps publishing only the privacy policy.

@@ -1,0 +1,1 @@
+import{b as t}from"./MainLayout.vue_vue_type_script_setup_true_lang-CbZDTK2n.js";import{b as o,e,G as c,o as l}from"./app-C6GmfuJm.js";const n={},r={class:"flex w-full items-center justify-center"},a={class:"content-shell flex"},i={class:"w-full"};function _(s,f){return l(),o("div",r,[e("div",a,[e("div",i,[c(s.$slots,"default")])])])}const u=t(n,[["render",_]]);export{u as F};

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { SurchargeOption } from './types'
-import { formatPriceWithVat } from './utils'
+import { formatSurchargePriceWithVat } from './utils'
 
 defineProps<{
   surcharges: SurchargeOption[]
@@ -23,11 +23,10 @@ const emit = defineEmits<{
       :class="selectedSurchargeIds.includes(surcharge.id) ? 'border-accent bg-white/10' : 'border-white/10 bg-dark/40 hover:border-accent'"
       @click="emit('toggle-surcharge', surcharge.id)"
     >
-      <span>
-        <span class="block text-base text-white">{{ surcharge.name }}</span>
-        <span class="mt-1 block text-[10px] tracking-[0.16em] text-white/50">{{ surcharge.code }}</span>
-      </span>
-      <span class="shrink-0 text-xs text-accent">+{{ formatPriceWithVat(surcharge.price_without_vat, vatRate) }} vč. DPH</span>
+      <!-- The card is named by the option alone: the catalogue code of the surcharge is an internal
+           identifier of the administration and is never printed to the visitor. -->
+      <span class="text-base text-white">{{ surcharge.name }}</span>
+      <span class="shrink-0 text-xs text-accent">{{ formatSurchargePriceWithVat(surcharge.price_without_vat, vatRate) }}</span>
     </button>
   </div>
 </template>

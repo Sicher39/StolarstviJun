@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 
+import ConfiguratorAccessoryStep from '@/front/components/Configurator/ConfiguratorAccessoryStep.vue'
 import ConfiguratorDecorStep from '@/front/components/Configurator/ConfiguratorDecorStep.vue'
 import ConfiguratorGlassStep from '@/front/components/Configurator/ConfiguratorGlassStep.vue'
 import ConfiguratorInquiryForm from '@/front/components/Configurator/ConfiguratorInquiryForm.vue'
@@ -18,9 +19,11 @@ import { composeDoorPreviewPng } from '@/front/components/Configurator/doorPrevi
 import type {
   ConfiguratorLimits,
   DecorOption,
+  DoorFrameOption,
   DoorModel,
   DoorVariant,
   GlassOption,
+  HardwareOption,
   InquiryItemDraft,
   InquiryItemPayload,
   PreviewScene,
@@ -28,6 +31,7 @@ import type {
   SurchargeOption
 } from '@/front/components/Configurator/types'
 import {
+  decorTextureIsHorizontal,
   defaultItemName,
   formatItemCount,
   formatPieceCount,
@@ -63,6 +67,8 @@ interface ConfiguratorDraftState {
   selectedVariantId: number | null
   selectedDecorId: number | null
   selectedGlassId: number | null
+  selectedFrameId: number | null
+  selectedHardwareId: number | null
   selectedWallId: number | null
   selectedFloorId: number | null
   selectedSurchargeIds: number[]
@@ -86,6 +92,8 @@ const SITE_HEADER_ID = 'site-header'
 const FALLBACK_HEADER_HEIGHT = 120
 // Breathing space between the header bar and the sticky columns, mirroring the padding the page starts with.
 const STICKY_TOP_GAP = 16
+// Jumping between the steps is a change of what is shown, not an animation the visitor asked for.
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
 const FALLBACK_LIMITS: ConfiguratorLimits = {
   max_items: 20,
@@ -156,6 +164,9 @@ const selectedModelId = ref<number | null>(initialModel?.id ?? null)
 const selectedVariantId = ref<number | null>(resolveInitialVariantId(initialModel))
 const selectedDecorId = ref<number | null>(resolveInitialDecorId(initialModel))
 const selectedGlassId = ref<number | null>(null)
+// The „Ostatní“ step: both accessories are optional, so a fresh draft starts without either of them.
+const selectedFrameId = ref<number | null>(null)
+const selectedHardwareId = ref<number | null>(null)
 const selectedWallId = ref<number | null>(props.previewScene?.materials.find((material) => material.type === 'wall')?.id ?? null)
 const selectedFloorId = ref<number | null>(props.previewScene?.materials.find((material) => material.type === 'floor')?.id ?? null)
 const selectedSurchargeIds = ref<number[]>([])
@@ -183,6 +194,9 @@ const previewError = ref('')
 // Measured height of the fixed site header, kept up to date while the page scrolls (the logo shrinks).
 const headerOffset = ref(FALLBACK_HEADER_HEIGHT)
 const stickyTop = computed((): number => headerOffset.value + STICKY_TOP_GAP)
+// The column with the steps of the configuration. Its top corner carries the sticky menu of the steps, so it is
+// also the anchor every jump between the steps is aligned to.
+const stepPanelElement = ref<HTMLElement | null>(null)
 
 const inquiryForm = useForm({
   // Filled right before submitting, one entry per item of the request. The server prices every item from
@@ -263,6 +277,20 @@ const selectedSurcharges = computed((): SurchargeOption[] => {
   return selectedModel.value?.surcharges.filter((surcharge) => selectedSurchargeIds.value.includes(surcharge.id)) ?? []
 })
 
+// Only the accessories the catalog assigned to the chosen model are offered, so the visitor can never pick a
+// frame or a piece of hardware the workshop does not fit to these doors. Both lists are read defensively,
+// because a payload captured before the step existed carries neither.
+const availableFrames = computed((): DoorFrameOption[] => selectedModel.value?.frames ?? [])
+const availableHardware = computed((): HardwareOption[] => selectedModel.value?.hardware ?? [])
+
+const selectedFrame = computed((): DoorFrameOption | null => {
+  return availableFrames.value.find((frame) => frame.id === Number(selectedFrameId.value)) ?? null
+})
+
+const selectedHardware = computed((): HardwareOption | null => {
+  return availableHardware.value.find((hardware) => hardware.id === Number(selectedHardwareId.value)) ?? null
+})
+
 const firstStepId = computed((): number => 1)
 const sceneStepId = computed((): number | null => hasPreviewSceneMaterials.value ? 1 : null)
 const modelStepId = computed((): number => hasPreviewSceneMaterials.value ? 2 : 1)
@@ -272,14 +300,18 @@ const decorStepId = computed((): number => variantStepId.value + 1)
 // before a model and a variant are chosen. It explains the missing choices itself instead of disappearing, so the
 // numbering of the steps and the position of the visitor never change while variants are compared.
 const glassStepId = computed((): number => decorStepId.value + 1)
+// The „Ostatní“ step belongs to every configuration and keeps its place between the glass and the inquiry, even
+// when the chosen model publishes no accessory: it explains that in the step itself instead of vanishing, so the
+// numbering never changes while the visitor compares models.
+const accessoryStepId = computed((): number => glassStepId.value + 1)
 const surchargeStepId = computed((): number | null => {
   if ((selectedModel.value?.surcharges.length ?? 0) === 0) {
     return null
   }
 
-  return glassStepId.value + 1
+  return accessoryStepId.value + 1
 })
-const inquiryStepId = computed((): number => (surchargeStepId.value ?? glassStepId.value) + 1)
+const inquiryStepId = computed((): number => (surchargeStepId.value ?? accessoryStepId.value) + 1)
 
 const steps = computed((): ConfiguratorStep[] => {
   const configuredSteps: ConfiguratorStep[] = []
@@ -295,6 +327,9 @@ const steps = computed((): ConfiguratorStep[] => {
     // Glass is always part of the menu: a variant without glazing only changes what the step says, not whether
     // the step exists, so switching variants never reshuffles the navigation.
     { id: glassStepId.value, label: 'Sklo' },
+    // The frame and the hardware follow the glass and precede the inquiry; the surcharges of the model keep
+    // their own step in between when the model offers any.
+    { id: accessoryStepId.value, label: 'Ostatní' },
   )
 
   if (surchargeStepId.value !== null) {
@@ -310,9 +345,10 @@ const currentStepLabel = computed((): string => {
   return steps.value.find((step) => step.id === activeStep.value)?.label ?? 'Konfigurace'
 })
 
-// Every step but the environment, the model, the glass and the request belongs to a chosen model, so it is out of
-// reach while a freshly started configuration has no model yet. Glass is reachable from the first draft on,
-// because it is a permanent step of the menu that explains itself instead of hiding.
+// Every step but the environment, the model, the glass, the accessories and the request belongs to a chosen
+// model, so it is out of reach while a freshly started configuration has no model yet. Glass and the „Ostatní“
+// step are reachable from the first draft on, because they are permanent steps of the menu that explain
+// themselves instead of hiding.
 const isStepAvailable = (stepId: number): boolean => {
   if (selectedModel.value !== null) {
     return true
@@ -321,6 +357,7 @@ const isStepAvailable = (stepId: number): boolean => {
   return stepId === sceneStepId.value
     || stepId === modelStepId.value
     || stepId === glassStepId.value
+    || stepId === accessoryStepId.value
     || stepId === inquiryStepId.value
 }
 
@@ -362,6 +399,9 @@ const currentUnitPriceWithoutVat = computed((): number => {
       + (selectedVariant.value?.price_modifier ?? 0)
       + (selectedDecor.value?.price_modifier ?? 0)
       + (selectedGlass.value?.price_modifier ?? 0)
+      // The accessories are priced per door as a whole, so their own net price is what they add.
+      + (selectedFrame.value?.price_without_vat ?? 0)
+      + (selectedHardware.value?.price_without_vat ?? 0)
       + surchargeTotal
   )
 })
@@ -384,12 +424,16 @@ const currentItemDraft = computed((): InquiryItemDraft | null => {
     door_variant_id: variant.id,
     decor_id: selectedDecor.value?.id ?? null,
     glass_type_id: glassAvailableForVariant.value ? selectedGlass.value?.id ?? null : null,
+    door_frame_id: selectedFrame.value?.id ?? null,
+    hardware_id: selectedHardware.value?.id ?? null,
     surcharge_ids: [...selectedSurchargeIds.value],
     model_name: model.name,
     variant_label: variantLabel(variant),
     variant,
     decor: selectedDecor.value,
     glass: selectedGlass.value,
+    frame: selectedFrame.value,
+    hardware: selectedHardware.value,
     surcharges: selectedSurcharges.value,
     base_price_without_vat: model.base_price_without_vat,
     unit_price_without_vat: currentUnitPriceWithoutVat.value,
@@ -463,6 +507,9 @@ const applyModelDefaults = (model: DoorModel | null): void => {
   selectedDecorId.value = resolveInitialDecorId(model)
   selectedSurchargeIds.value = []
   selectedGlassId.value = model?.glasses[0] && model.variants.some((variant) => variant.has_glass) ? model.glasses[0].id : null
+  // The catalog publishes no default accessory, so both start empty on every model change.
+  selectedFrameId.value = null
+  selectedHardwareId.value = null
 }
 
 // The watcher of the model resets the selections that belong to it. Restoring an edited item sets the model
@@ -477,6 +524,8 @@ const resetConfiguration = (model: DoorModel | null): void => {
   selectedVariantId.value = resolveInitialVariantId(model)
   selectedDecorId.value = resolveInitialDecorId(model)
   selectedGlassId.value = null
+  selectedFrameId.value = null
+  selectedHardwareId.value = null
   selectedSurchargeIds.value = []
   currentItemName.value = ''
   currentItemQuantity.value = 1
@@ -532,6 +581,18 @@ const selectDecor = (decorId: number | null): void => {
 const selectGlass = (glassId: number | null): void => {
   previewItemUid.value = null
   selectedGlassId.value = glassId
+}
+
+// The accessories are optional, so the step may clear them (a second click on the chosen card), which is why both
+// handlers accept `null`.
+const selectFrame = (frameId: number | null): void => {
+  previewItemUid.value = null
+  selectedFrameId.value = frameId
+}
+
+const selectHardware = (hardwareId: number | null): void => {
+  previewItemUid.value = null
+  selectedHardwareId.value = hardwareId
 }
 
 // The materials only change the room of the preview, so a selected item may stay in it.
@@ -601,7 +662,7 @@ const saveCurrentItem = (): void => {
 
 // Restoring a stored item into the steps of the configurator. The selections are set after the model, and the
 // reset of the model watcher is suppressed until the next render, otherwise it would overwrite exactly the
-// variant, decor, glass and surcharges that are being restored.
+// variant, decor, glass, accessories and surcharges that are being restored.
 const applyItemSelection = (item: InquiryItemDraft): void => {
   isRestoringItemSelection = true
   isDraftOpen.value = true
@@ -610,6 +671,8 @@ const applyItemSelection = (item: InquiryItemDraft): void => {
   selectedVariantId.value = item.door_variant_id
   selectedDecorId.value = item.decor_id
   selectedGlassId.value = item.glass_type_id
+  selectedFrameId.value = item.door_frame_id
+  selectedHardwareId.value = item.hardware_id
   selectedSurchargeIds.value = [...item.surcharge_ids]
   currentItemName.value = item.name
   currentItemQuantity.value = clampQuantity(item.quantity)
@@ -629,6 +692,8 @@ const captureDraftState = (): ConfiguratorDraftState => {
     selectedVariantId: selectedVariantId.value,
     selectedDecorId: selectedDecorId.value,
     selectedGlassId: selectedGlassId.value,
+    selectedFrameId: selectedFrameId.value,
+    selectedHardwareId: selectedHardwareId.value,
     selectedWallId: selectedWallId.value,
     selectedFloorId: selectedFloorId.value,
     selectedSurchargeIds: [...selectedSurchargeIds.value],
@@ -667,6 +732,8 @@ const restoreDraftState = (state: ConfiguratorDraftState): void => {
   selectedVariantId.value = state.selectedVariantId
   selectedDecorId.value = state.selectedDecorId
   selectedGlassId.value = state.selectedGlassId
+  selectedFrameId.value = state.selectedFrameId
+  selectedHardwareId.value = state.selectedHardwareId
   selectedWallId.value = state.selectedWallId
   selectedFloorId.value = state.selectedFloorId
   selectedSurchargeIds.value = [...state.selectedSurchargeIds]
@@ -786,6 +853,7 @@ const submitInquiry = async (): Promise<void> => {
       const preview = await composeDoorPreviewPng({
         variant: item.variant,
         decorTextureUrl: item.decor?.texture_image_url ?? null,
+        decorTextureIsHorizontal: decorTextureIsHorizontal(item.decor),
         glassTextureUrl: item.glass?.texture_image_url ?? null,
         glassOpacity: glassOpacityFraction(item.glass)
       })
@@ -800,6 +868,8 @@ const submitInquiry = async (): Promise<void> => {
         // sent as null, so the endpoint sees an absent (and therefore nullable) field.
         ...(item.decor_id !== null ? { decor_id: item.decor_id } : {}),
         ...(item.glass_type_id !== null ? { glass_type_id: item.glass_type_id } : {}),
+        ...(item.door_frame_id !== null ? { door_frame_id: item.door_frame_id } : {}),
+        ...(item.hardware_id !== null ? { hardware_id: item.hardware_id } : {}),
         ...(preview !== null ? { door_preview: preview } : {})
       })
     }
@@ -859,6 +929,31 @@ const scheduleHeaderMeasure = (): void => {
   })
 }
 
+// Opening a step always starts at its own beginning. The offer of the previous one is long enough (the decors
+// especially) for the page to stay scrolled deep inside it, and a shorter step would even keep the visitor at its
+// very end. Moving the top corner of the step column below the sticky menu therefore shows the heading of the new
+// step together with its first options, whatever the scroll position of the previous one was. A step that already
+// begins below the menu is left alone, so switching steps never scrolls the page down by itself.
+const alignStepStart = (): void => {
+  const stepPanel = stepPanelElement.value
+
+  if (stepPanel === null) {
+    return
+  }
+
+  const stepPanelTop = Math.round(window.scrollY + stepPanel.getBoundingClientRect().top)
+  const targetTop = Math.max(stepPanelTop - stickyTop.value, 0)
+
+  if (window.scrollY <= targetTop) {
+    return
+  }
+
+  window.scrollTo({
+    top: targetTop,
+    behavior: window.matchMedia(REDUCED_MOTION_QUERY).matches ? 'auto' : 'smooth'
+  })
+}
+
 onMounted(() => {
   measureHeaderOffset()
   window.addEventListener('scroll', scheduleHeaderMeasure, { passive: true })
@@ -907,6 +1002,14 @@ watch(steps, (configuredSteps, previousSteps) => {
   activeStep.value = configuredSteps[fallbackIndex]?.id ?? 1
 })
 
+// Every change of the step - the menu, „Pokračovat“/„Zpět“ and the programmatic jumps alike - swaps the content
+// of the right column for a shorter or longer one, so the new step is aligned to its own start once the swap is
+// rendered. The alignment reads the DOM, so it has to wait for the render of the new step.
+watch(activeStep, async () => {
+  await nextTick()
+  alignStepStart()
+})
+
 // The configuration the page started with, read after the watchers above resolved the initial glass. It tells an
 // untouched draft (which needs no restoration) apart from one the visitor built.
 const pristineDraftSignature = draftStateSignature(captureDraftState())
@@ -942,6 +1045,12 @@ const previewVariantLabel = computed((): string | null => {
 })
 const previewDecorImageUrl = computed((): string | null => {
   return previewedItem.value ? previewedItem.value.decor?.texture_image_url ?? null : selectedDecorImageUrl.value
+})
+// The direction of the grain belongs to the decor that is drawn, so a previewed item brings its own one.
+const previewDecorTextureIsHorizontal = computed((): boolean => {
+  return previewedItem.value
+    ? decorTextureIsHorizontal(previewedItem.value.decor)
+    : decorTextureIsHorizontal(selectedDecor.value)
 })
 const previewGlassImageUrl = computed((): string | null => {
   return previewedItem.value ? previewedItem.value.glass?.texture_image_url ?? null : glassLayerImageUrl.value
@@ -1037,6 +1146,7 @@ const previewDoorMaskId = computed((): string => {
             :can-render-decor-layer="previewCanRenderDecorLayer"
             :selected-preview-image-url="previewFallbackImageUrl"
             :selected-decor-image-url="previewDecorImageUrl"
+            :selected-decor-texture-is-horizontal="previewDecorTextureIsHorizontal"
             :selected-variant="previewVariant"
             :preview-scene="previewScene"
             :selected-wall="selectedWall"
@@ -1049,31 +1159,38 @@ const previewDoorMaskId = computed((): string => {
 
         </section>
 
-        <section class="border border-white/15 bg-white/5 lg:col-span-7">
+        <section ref="stepPanelElement" class="border border-white/15 bg-white/5 lg:col-span-7">
           <!--
             The menu of the steps stays right below the fixed site header, so the visitor can jump between the
             steps while the long content of the current one scrolls underneath it. It sticks inside this column,
-            which spans the whole height of the configurator, so no shorter ancestor clips it. On narrow screens
-            the buttons keep a single scrollable row instead of stacking three rows over the content. The menu
-            only exists while a configuration is open: without a draft there are no steps to walk through.
+            which spans the whole height of the configurator, so no shorter ancestor clips it. The menu only
+            exists while a configuration is open: without a draft there are no steps to walk through.
+
+            The steps are always one horizontal row, never two: the row is a flex line that does not wrap, so on
+            a desktop the cards share the available width equally however many steps the current configuration
+            has (six to eight including „Ostatní“ and the surcharges). A fixed column count cannot do that, it
+            pushed the last steps onto a second line as soon as the menu grew. On narrow screens the same line
+            keeps its comfortable minimum card width and scrolls sideways with snapping instead of squeezing.
           -->
           <div
             v-if="isDraftOpen"
             class="sticky z-20 border-b border-white/10 bg-dark/95 px-5 py-3 backdrop-blur lg:px-6"
             :style="{ top: `${stickyTop}px` }"
           >
-            <div class="flex snap-x snap-mandatory gap-2 overflow-x-auto scrollbar-hide lg:grid lg:grid-cols-6 lg:overflow-visible">
+            <div class="flex snap-x snap-mandatory gap-2 overflow-x-auto scrollbar-hide lg:snap-none lg:overflow-visible">
               <button
                 v-for="step in steps"
                 :key="step.id"
                 type="button"
-                class="min-w-[7.5rem] shrink-0 snap-start border px-3 py-3 text-left transition lg:min-w-0"
+                class="min-w-[7.5rem] shrink-0 snap-start border px-3 py-3 text-left transition lg:min-w-0 lg:flex-1 lg:px-2"
                 :class="stepButtonClass(step.id)"
                 :disabled="!isStepAvailable(step.id)"
                 @click="goToStep(step.id)"
               >
                 <span class="block text-[10px] uppercase tracking-[0.18em] text-accent">0{{ step.id }}</span>
-                <span class="mt-1 block text-xs uppercase">{{ step.label }}</span>
+                <!-- A step name is one word, so it breaks inside its own card rather than spilling over the
+                     neighbouring one when the row is tighter than the label. -->
+                <span class="mt-1 block text-xs uppercase break-words">{{ step.label }}</span>
               </button>
             </div>
           </div>
@@ -1139,6 +1256,17 @@ const previewDoorMaskId = computed((): string => {
               :variant-has-glass="glassAvailableForVariant"
               @update:selected-glass-id="selectGlass"
             />
+            <ConfiguratorAccessoryStep
+              v-else-if="activeStep === accessoryStepId"
+              :frames="availableFrames"
+              :hardware="availableHardware"
+              :selected-frame-id="selectedFrameId"
+              :selected-hardware-id="selectedHardwareId"
+              :vat-rate="vatRate"
+              :has-selected-model="selectedModel !== null"
+              @update:selected-frame-id="selectFrame"
+              @update:selected-hardware-id="selectHardware"
+            />
             <ConfiguratorSurchargeStep
               v-else-if="activeStep === surchargeStepId && (selectedModel?.surcharges.length ?? 0) > 0"
               :surcharges="selectedModel?.surcharges ?? []"
@@ -1156,6 +1284,8 @@ const previewDoorMaskId = computed((): string => {
                   :selected-variant-label="selectedVariant ? variantLabel(selectedVariant) : null"
                   :selected-decor-name="selectedDecor?.name ?? null"
                   :selected-glass-name="selectedGlass?.name ?? null"
+                  :selected-frame-name="selectedFrame?.name ?? null"
+                  :selected-hardware-name="selectedHardware?.name ?? null"
                   :selected-surcharge-names="selectedSurcharges.map((surcharge) => surcharge.name)"
                 />
                 <ConfiguratorRequestItemCard

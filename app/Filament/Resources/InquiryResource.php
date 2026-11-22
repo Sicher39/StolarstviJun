@@ -5,9 +5,11 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\InquiryResource\Pages\EditInquiry;
 use App\Filament\Resources\InquiryResource\Pages\ListInquiries;
 use App\Models\Decor;
+use App\Models\DoorFrame;
 use App\Models\DoorModel;
 use App\Models\DoorVariant;
 use App\Models\GlassType;
+use App\Models\Hardware;
 use App\Models\Inquiry;
 use App\Models\InquiryItem;
 use App\Services\Inquiry\InquiryItemBuilder;
@@ -47,6 +49,11 @@ use Filament\Tables\Table;
  * price; the totals of the inquiry are then recomputed from the items on every save (see
  * InquiryTotalsCalculator), never typed by hand. An inquiry stored before the items existed keeps the
  * single door view instead: its four catalog selects and its two prices stay editable exactly as before.
+ *
+ * The frame and the hardware of the „Ostatní“ step belong to an item as well: they are picked from the
+ * accessories the chosen model offers and the price per piece is recalculated with them. The columns of
+ * `inquiries` carry no such reference, so the single door view has nothing to bind them to and only says
+ * where the stored values are kept.
  *
  * The `configuration` and `crm_payload` JSON snapshots are never edited here. `configuration` is shown
  * as read only text through InquirySnapshotPresenter, because it is the historical record of what the
@@ -194,6 +201,12 @@ class InquiryResource extends Resource
                     ->relationship('glassType', 'name')
                     ->searchable()
                     ->preload(),
+                // The frame and the hardware are stored on the items, so this view can not offer them as
+                // selects; it says where the stored values are instead of inventing a field for a column
+                // that the schema does not have.
+                Text::make('Zárubeň a kování se ukládají u každé položky poptávky, proto je tato část nenabízí k úpravě. Jejich uložené hodnoty najdete níže v části „Uložená konfigurace z konfigurátoru“.')
+                    ->color('gray')
+                    ->columnSpanFull(),
             ],
             'surcharges' => [
                 Select::make('surcharges')
@@ -271,94 +284,136 @@ class InquiryResource extends Resource
             ->extraItemActions([
                 self::recalculateItemAction(),
             ])
-            ->schema([
-                TextInput::make('name')
-                    ->label('Název položky')
-                    ->required()
-                    ->maxLength(160)
-                    ->columnSpanFull(),
-                TextInput::make('quantity')
-                    ->label('Množství (ks)')
-                    ->helperText('Počet kusů této konfigurace. Nejvýše '.InquiryItem::MAX_QUANTITY_PER_ITEM.' kusů na jednu položku.')
-                    ->numeric()
-                    ->integer()
-                    ->minValue(1)
-                    ->maxValue(InquiryItem::MAX_QUANTITY_PER_ITEM)
-                    ->default(1)
-                    ->required()
-                    ->live(onBlur: true),
-                TextInput::make('unit_price_without_vat')
-                    ->label('Cena za kus bez DPH')
-                    ->helperText('Cena za kus v Kč. Tlačítko „Přepočítat z katalogu“ ji nastaví podle aktuálního ceníku.')
-                    ->numeric()
-                    ->inputMode('decimal')
-                    ->step('0.01')
-                    ->default(0)
-                    ->required()
-                    ->live(onBlur: true),
-                Select::make('door_model_id')
-                    ->label('Model dveří')
-                    ->options(fn (Get $get): array => self::doorModelOptions($get('door_model_id')))
-                    ->searchable()
-                    ->preload()
-                    ->live()
-                    ->required(),
-                Select::make('door_variant_id')
-                    ->label('Varianta dveří')
-                    ->helperText('Nabízejí se pouze varianty zvoleného modelu.')
-                    ->options(fn (Get $get): array => self::doorVariantOptions($get('door_model_id'), $get('door_variant_id')))
-                    ->searchable()
-                    ->preload()
-                    ->live()
-                    ->required()
-                    ->rules([
-                        fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
-                            $doorModelId = self::intOrNull($get('door_model_id'));
-
-                            if (blank($value) || $doorModelId === null) {
-                                return;
-                            }
-
-                            if (! DoorVariant::query()->whereKey($value)->where('door_model_id', $doorModelId)->exists()) {
-                                $fail('Vybraná varianta nepatří ke zvolenému modelu.');
-                            }
-                        },
-                    ]),
-                Select::make('decor_id')
-                    ->label('Dekor')
-                    ->helperText('Nabízejí se pouze dekory přiřazené zvolenému modelu.')
-                    ->options(fn (Get $get): array => self::decorOptions($get('door_model_id'), $get('decor_id')))
-                    ->searchable()
-                    ->preload()
-                    ->live(),
-                Select::make('glass_type_id')
-                    ->label('Sklo')
-                    ->helperText('Nabízejí se pouze skla přiřazená zvolenému modelu. Varianta bez skla sklo nepoužívá.')
-                    ->options(fn (Get $get): array => self::glassTypeOptions($get('door_model_id'), $get('glass_type_id')))
-                    ->searchable()
-                    ->preload()
-                    ->live(),
-                Text::make(fn (Get $get): string => self::itemTotalsText($get('quantity'), $get('unit_price_without_vat')))
-                    ->color('gray')
-                    ->columnSpanFull(),
-                Image::make(
-                    fn (Get $get): string => self::selectionPreview($get)['url'] ?? '',
-                    fn (Get $get): string => self::selectionPreview($get)['label'] ?? 'Náhled volby',
-                )
-                    ->imageHeight('22rem')
-                    ->columnSpanFull()
-                    ->visible(fn (Get $get): bool => self::selectionPreview($get) !== null),
-                Text::make('Ke zvolené kombinaci není v katalogu žádný obrázek. Vygenerovaný náhled položky vzniká v prohlížeči při odeslání poptávky a v administraci se nepřekresluje.')
-                    ->color('gray')
-                    ->columnSpanFull()
-                    ->visible(fn (Get $get): bool => self::selectionPreview($get) === null),
-            ])
+            ->schema(self::itemFields())
             ->columns(['default' => 1, 'md' => 2]);
+    }
+
+    /**
+     * The editable fields of one item: its name, its quantity, its catalog selection and its prices.
+     *
+     * The frame and the hardware of the „Ostatní“ step are chosen here as well, from the active
+     * accessories of the model the item currently holds, so a quote can be corrected with the same
+     * catalog the configurator offers. Public like `formFields()`, so the layout of an item can be
+     * asserted without booting a panel.
+     *
+     * @return list<Component>
+     */
+    public static function itemFields(): array
+    {
+        return [
+            TextInput::make('name')
+                ->label('Název položky')
+                ->required()
+                ->maxLength(160)
+                ->columnSpanFull(),
+            TextInput::make('quantity')
+                ->label('Množství (ks)')
+                ->helperText('Počet kusů této konfigurace. Nejvýše '.InquiryItem::MAX_QUANTITY_PER_ITEM.' kusů na jednu položku.')
+                ->numeric()
+                ->integer()
+                ->minValue(1)
+                ->maxValue(InquiryItem::MAX_QUANTITY_PER_ITEM)
+                ->default(1)
+                ->required()
+                ->live(onBlur: true),
+            TextInput::make('unit_price_without_vat')
+                ->label('Cena za kus bez DPH')
+                ->helperText('Cena za kus v Kč. Tlačítko „Přepočítat z katalogu“ ji nastaví podle aktuálního ceníku.')
+                ->numeric()
+                ->inputMode('decimal')
+                ->step('0.01')
+                ->default(0)
+                ->required()
+                ->live(onBlur: true),
+            Select::make('door_model_id')
+                ->label('Model dveří')
+                ->options(fn (Get $get): array => self::doorModelOptions($get('door_model_id')))
+                ->searchable()
+                ->preload()
+                ->live()
+                ->required(),
+            Select::make('door_variant_id')
+                ->label('Varianta dveří')
+                ->helperText('Nabízejí se pouze varianty zvoleného modelu.')
+                ->options(fn (Get $get): array => self::doorVariantOptions($get('door_model_id'), $get('door_variant_id')))
+                ->searchable()
+                ->preload()
+                ->live()
+                ->required()
+                ->rules([
+                    fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                        $doorModelId = self::intOrNull($get('door_model_id'));
+
+                        if (blank($value) || $doorModelId === null) {
+                            return;
+                        }
+
+                        if (! DoorVariant::query()->whereKey($value)->where('door_model_id', $doorModelId)->exists()) {
+                            $fail('Vybraná varianta nepatří ke zvolenému modelu.');
+                        }
+                    },
+                ]),
+            Select::make('decor_id')
+                ->label('Dekor')
+                ->helperText('Nabízejí se pouze dekory přiřazené zvolenému modelu.')
+                ->options(fn (Get $get): array => self::decorOptions($get('door_model_id'), $get('decor_id')))
+                ->searchable()
+                ->preload()
+                ->live(),
+            Select::make('glass_type_id')
+                ->label('Sklo')
+                ->helperText('Nabízejí se pouze skla přiřazená zvolenému modelu. Varianta bez skla sklo nepoužívá.')
+                ->options(fn (Get $get): array => self::glassTypeOptions($get('door_model_id'), $get('glass_type_id')))
+                ->searchable()
+                ->preload()
+                ->live(),
+            // The frame and the hardware are optional, exactly like in the configurator: a request without
+            // them is priced as before. Only an active accessory of the chosen model can be saved here.
+            Select::make('door_frame_id')
+                ->label('Zárubeň')
+                ->helperText('Nabízejí se pouze aktivní zárubně přiřazené zvolenému modelu. Zárubeň vstupuje do ceny za kus.')
+                ->options(fn (Get $get): array => self::doorFrameOptions($get('door_model_id'), $get('door_frame_id')))
+                ->searchable()
+                ->preload()
+                ->live()
+                ->rules([
+                    self::accessoryRule(DoorFrame::class, 'Vybraná zárubeň není aktivní nebo nepatří ke zvolenému modelu.'),
+                ]),
+            Select::make('hardware_id')
+                ->label('Kování')
+                ->helperText('Nabízejí se pouze aktivní kování přiřazená zvolenému modelu. Kování vstupuje do ceny za kus.')
+                ->options(fn (Get $get): array => self::hardwareOptions($get('door_model_id'), $get('hardware_id')))
+                ->searchable()
+                ->preload()
+                ->live()
+                ->rules([
+                    self::accessoryRule(Hardware::class, 'Vybrané kování není aktivní nebo nepatří ke zvolenému modelu.'),
+                ]),
+            Text::make(fn (Get $get): string => self::itemTotalsText($get('quantity'), $get('unit_price_without_vat')))
+                ->color('gray')
+                ->columnSpanFull(),
+            Image::make(
+                fn (Get $get): string => self::selectionPreview($get)['url'] ?? '',
+                fn (Get $get): string => self::selectionPreview($get)['label'] ?? 'Náhled volby',
+            )
+                ->imageHeight('22rem')
+                ->columnSpanFull()
+                ->visible(fn (Get $get): bool => self::selectionPreview($get) !== null),
+            Text::make('Ke zvolené kombinaci není v katalogu žádný obrázek. Vygenerovaný náhled položky vzniká v prohlížeči při odeslání poptávky a v administraci se nepřekresluje.')
+                ->color('gray')
+                ->columnSpanFull()
+                ->visible(fn (Get $get): bool => self::selectionPreview($get) === null),
+        ];
     }
 
     /**
      * Recalculates the price per piece of one item from the current catalog, so a quote can follow a
      * price change without retyping the numbers. The formula is the one the configurator uses.
+     *
+     * Only the ids of the item the form currently holds are read here - never a price - and every amount
+     * is resolved from the catalog by InquiryItemBuilder. An accessory the chosen model does not offer
+     * adds nothing, exactly like a decor or a glass that the model lost, so the administration can price
+     * a quote whose catalog changed in the meantime.
      */
     private static function recalculateItemAction(): Action
     {
@@ -366,7 +421,7 @@ class InquiryResource extends Resource
             ->label('Přepočítat z katalogu')
             ->icon(Heroicon::OutlinedArrowPath)
             ->color('gray')
-            ->tooltip('Nastaví cenu za kus podle modelu, varianty, dekoru, skla a příplatků z katalogu.')
+            ->tooltip('Nastaví cenu za kus podle modelu, varianty, dekoru, skla, zárubně, kování a příplatků z katalogu.')
             ->action(function (array $arguments, Repeater $component, InquiryItemBuilder $builder): void {
                 $key = $arguments['item'] ?? null;
 
@@ -374,7 +429,7 @@ class InquiryResource extends Resource
                     return;
                 }
 
-                $state = $component->getRawItemState($key);
+                $state = $component->getRawItemState($key) ?? [];
 
                 $unitPrice = $builder->catalogUnitPrice(
                     self::intOrNull($state['door_model_id'] ?? null),
@@ -382,6 +437,8 @@ class InquiryResource extends Resource
                     self::intOrNull($state['decor_id'] ?? null),
                     self::intOrNull($state['glass_type_id'] ?? null),
                     self::surchargeIdsOfItem($key),
+                    self::intOrNull($state['door_frame_id'] ?? null),
+                    self::intOrNull($state['hardware_id'] ?? null),
                 );
 
                 if ($unitPrice === null) {
@@ -426,6 +483,39 @@ class InquiryResource extends Resource
         $item = InquiryItem::query()->find((int) substr($itemKey, strlen('record-')));
 
         return $item instanceof InquiryItem ? $item->snapshotSurchargeIds() : [];
+    }
+
+    /**
+     * The rule of one accessory select: an id may only be saved when the catalog still offers it for the
+     * model the item currently holds.
+     *
+     * The options of the select already hide the other rows, but a dependent select is a convenience and
+     * not a guarantee - a stored value and a changed model both reach the form without passing through
+     * the options. The rule therefore repeats the check of InquiryItemBuilder, and it is spelled out
+     * instead of silently dropping the value, so the administrator sees why an item can not be saved.
+     * Without a model nothing can be decided and the required model field reports itself.
+     *
+     * @param  class-string<DoorFrame|Hardware>  $accessory
+     */
+    private static function accessoryRule(string $accessory, string $message): Closure
+    {
+        return fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get, $accessory, $message): void {
+            $doorModelId = self::intOrNull($get('door_model_id'));
+
+            if (blank($value) || $doorModelId === null) {
+                return;
+            }
+
+            $isOffered = $accessory::query()
+                ->whereKey($value)
+                ->where('active', true)
+                ->whereHas('doorModels', fn ($query) => $query->whereKey($doorModelId))
+                ->exists();
+
+            if (! $isOffered) {
+                $fail($message);
+            }
+        };
     }
 
     /**
@@ -859,6 +949,60 @@ class InquiryResource extends Resource
     }
 
     /**
+     * Active frames offered for the chosen model, plus the stored one.
+     *
+     * The accessory decides which models may be configured with it, so the query goes through its
+     * `doorModels` relation - the same one the configurator reads, which keeps the administration and
+     * the browser on one catalog. Public like `formFields()`: the filtering has to be assertable
+     * without booting a panel.
+     *
+     * @return array<int, string>
+     */
+    public static function doorFrameOptions(mixed $doorModelId, mixed $currentId = null): array
+    {
+        $doorModelId = self::intOrNull($doorModelId);
+        $currentId = self::intOrNull($currentId);
+
+        $options = DoorFrame::query()
+            ->where('active', true)
+            ->when(
+                $doorModelId !== null,
+                fn ($query) => $query->whereHas('doorModels', fn ($query) => $query->whereKey($doorModelId)),
+            )
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+
+        return self::withCurrentOption($options, $currentId, fn (): ?string => DoorFrame::query()->find($currentId)?->name);
+    }
+
+    /**
+     * Active hardware offered for the chosen model, plus the stored one. It follows the frame exactly:
+     * both are accessories attached to the models from their own side.
+     *
+     * @return array<int, string>
+     */
+    public static function hardwareOptions(mixed $doorModelId, mixed $currentId = null): array
+    {
+        $doorModelId = self::intOrNull($doorModelId);
+        $currentId = self::intOrNull($currentId);
+
+        $options = Hardware::query()
+            ->where('active', true)
+            ->when(
+                $doorModelId !== null,
+                fn ($query) => $query->whereHas('doorModels', fn ($query) => $query->whereKey($doorModelId)),
+            )
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+
+        return self::withCurrentOption($options, $currentId, fn (): ?string => Hardware::query()->find($currentId)?->name);
+    }
+
+    /**
      * Keeps a stored value selectable even when the catalog no longer offers it, so changing the offer
      * never turns an old inquiry into a form that refuses to save.
      *
@@ -912,6 +1056,50 @@ class InquiryResource extends Resource
             .'. Konfigurace a ceny zůstávají zachované.';
     }
 
+    /**
+     * The frame and the hardware of the request in one line, for the list table.
+     *
+     * The first item describes the request in the columns of the inquiry, so its stored references are
+     * read first; an inquiry stored before the items (or before the accessory columns) existed keeps the
+     * selection in the snapshot only, which is the fallback. Nothing is printed for a request with
+     * neither, so an old record renders empty instead of inventing a selection. Public like
+     * `formFields()`, so the label of a stored selection can be asserted without booting a panel.
+     */
+    public static function accessoryLabels(?Inquiry $record): ?string
+    {
+        if (! $record instanceof Inquiry) {
+            return null;
+        }
+
+        // Both relations are loaded up front, so the label does not run a query per row of the table.
+        $record->loadMissing('items.doorFrame', 'items.hardware');
+
+        $firstItem = $record->items->first();
+        $snapshot = $firstItem instanceof InquiryItem ? $firstItem->snapshot() : ($record->configuration ?? []);
+
+        $labels = array_values(array_filter([
+            self::accessoryLabel('Zárubeň', $firstItem?->doorFrame?->name, $snapshot['door_frame'] ?? null),
+            self::accessoryLabel('Kování', $firstItem?->hardware?->name, $snapshot['hardware'] ?? null),
+        ]));
+
+        return $labels === [] ? null : implode(' · ', $labels);
+    }
+
+    /**
+     * "Zárubeň: Bezfalcová" from the catalog reference of the item, or from the snapshot of a request
+     * whose columns are still empty.
+     */
+    private static function accessoryLabel(string $kind, ?string $catalogName, mixed $snapshotSection): ?string
+    {
+        $name = $catalogName;
+
+        if (! filled($name) && is_array($snapshotSection) && is_string($snapshotSection['name'] ?? null)) {
+            $name = trim($snapshotSection['name']);
+        }
+
+        return filled($name) ? $kind.': '.$name : null;
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -935,6 +1123,14 @@ class InquiryResource extends Resource
                     ->label('Varianta (1. položka)')
                     ->searchable()
                     ->sortable(),
+                // The accessories are stored per item and in the snapshot, so the label is resolved from
+                // the same door the two columns above describe.
+                TextColumn::make('accessories')
+                    ->label('Zárubeň a kování (1. položka)')
+                    ->state(fn (Inquiry $record): ?string => self::accessoryLabels($record))
+                    ->placeholder('—')
+                    ->wrap()
+                    ->toggleable(),
                 TextColumn::make('status')
                     ->label('Stav')
                     ->badge()

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 import type { GlassOption } from './types'
-import { formatPriceWithVat, swatchStyle } from './utils'
+import { formatSurchargePriceWithVat, swatchStyle } from './utils'
 
 const props = defineProps<{
   glasses: GlassOption[]
@@ -65,7 +65,7 @@ const emptyState = computed((): { title: string; hint: string } => {
         <span class="h-12 w-12 shrink-0 overflow-hidden border border-white/10 bg-white/5" :style="swatchStyle(glass.preview_image_url ?? glass.texture_image_url, 'glass')" />
         <span class="min-w-0 flex-1">
           <span class="block text-base text-white">{{ glass.name }}</span>
-          <span class="mt-1 block text-xs text-white/55">{{ glass.price_modifier > 0 ? '+' : '' }}{{ formatPriceWithVat(glass.price_modifier, vatRate) }} vč. DPH</span>
+          <span class="mt-1 block text-xs text-white/55">{{ formatSurchargePriceWithVat(glass.price_modifier, vatRate) }}</span>
         </span>
       </button>
     </div>

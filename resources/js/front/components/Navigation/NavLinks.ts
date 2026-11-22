@@ -26,6 +26,11 @@ export const navLinks: NavLink[] = [
     route: 'front.references'
   },
   {
+    title: 'Katalog',
+    link: '/katalog',
+    route: 'front.catalog'
+  },
+  {
     title: 'Kontakt',
     link: '/kontakt',
     route: 'front.contact'

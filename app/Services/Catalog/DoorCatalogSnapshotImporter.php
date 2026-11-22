@@ -3,9 +3,11 @@
 namespace App\Services\Catalog;
 
 use App\Models\Decor;
+use App\Models\DoorFrame;
 use App\Models\DoorModel;
 use App\Models\DoorVariant;
 use App\Models\GlassType;
+use App\Models\Hardware;
 use App\Models\Surcharge;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +21,10 @@ use Throwable;
  * The rules the importer never breaks:
  *
  *  - source ids are never copied, they are translated to destination ids through the stable keys
- *    (model slug, variant code per model, decor and glass code);
+ *    (model slug, variant code per model, and the code of a decor, glass type, surcharge, frame or
+ *    hardware);
+ *  - a bundle written before the frame and hardware catalog existed stays importable: the tables and
+ *    the door model type it does not carry are simply left untouched;
  *  - a run without `force` aborts as soon as any destination record already uses one of those keys,
  *    so an accidental second run cannot duplicate or overwrite the catalog;
  *  - a conflict free run only creates records, it never deletes or detaches anything, relations are
@@ -46,6 +51,12 @@ class DoorCatalogSnapshotImporter
 
     /** @var array<int, int> source door variant id => destination door variant id */
     private array $doorVariantIds = [];
+
+    /** @var array<int, int> source door frame id => destination door frame id */
+    private array $doorFrameIds = [];
+
+    /** @var array<int, int> source hardware id => destination hardware id */
+    private array $hardwareIds = [];
 
     /** @var array<string, mixed> */
     private array $report = [];
@@ -83,6 +94,8 @@ class DoorCatalogSnapshotImporter
             'decors' => Decor::class,
             'glass_types' => GlassType::class,
             'surcharges' => Surcharge::class,
+            'door_frames' => DoorFrame::class,
+            'hardware' => Hardware::class,
         ];
 
         foreach ($codedModels as $table => $modelClass) {
@@ -140,6 +153,8 @@ class DoorCatalogSnapshotImporter
                 $this->importDecors($snapshot);
                 $this->importGlassTypes($snapshot);
                 $this->importSurcharges($snapshot);
+                $this->importDoorFrames($snapshot);
+                $this->importHardware($snapshot);
                 $this->importDoorModels($snapshot);
                 $this->importDoorVariants($snapshot);
                 $this->importDefaultSelections($snapshot);
@@ -165,6 +180,8 @@ class DoorCatalogSnapshotImporter
         $this->surchargeIds = [];
         $this->doorModelIds = [];
         $this->doorVariantIds = [];
+        $this->doorFrameIds = [];
+        $this->hardwareIds = [];
 
         $tables = array_keys(DoorCatalogSnapshot::COLUMNS);
 
@@ -222,6 +239,36 @@ class DoorCatalogSnapshotImporter
 
             $this->surchargeIds[(int) $row['id']] = (int) $surcharge->getKey();
             $this->report[$isNew ? 'created' : 'updated']['surcharges']++;
+        }
+    }
+
+    private function importDoorFrames(DoorCatalogSnapshot $snapshot): void
+    {
+        foreach ($snapshot->rows('door_frames') as $row) {
+            $doorFrame = DoorFrame::query()->where('code', (string) $row['code'])->first();
+            $isNew = $doorFrame === null;
+            $doorFrame ??= new DoorFrame();
+
+            $this->fillAttributes($doorFrame, $row, DoorCatalogSnapshot::COLUMNS['door_frames']);
+            $doorFrame->save();
+
+            $this->doorFrameIds[(int) $row['id']] = (int) $doorFrame->getKey();
+            $this->report[$isNew ? 'created' : 'updated']['door_frames']++;
+        }
+    }
+
+    private function importHardware(DoorCatalogSnapshot $snapshot): void
+    {
+        foreach ($snapshot->rows('hardware') as $row) {
+            $hardware = Hardware::query()->where('code', (string) $row['code'])->first();
+            $isNew = $hardware === null;
+            $hardware ??= new Hardware();
+
+            $this->fillAttributes($hardware, $row, DoorCatalogSnapshot::COLUMNS['hardware']);
+            $hardware->save();
+
+            $this->hardwareIds[(int) $row['id']] = (int) $hardware->getKey();
+            $this->report[$isNew ? 'created' : 'updated']['hardware']++;
         }
     }
 
@@ -330,6 +377,8 @@ class DoorCatalogSnapshotImporter
         $this->attachRelation($snapshot, 'decor_door_model', 'decors', 'decor_id', $this->decorIds);
         $this->attachRelation($snapshot, 'door_model_glass_type', 'glasses', 'glass_type_id', $this->glassTypeIds);
         $this->attachRelation($snapshot, 'door_model_surcharge', 'surcharges', 'surcharge_id', $this->surchargeIds);
+        $this->attachRelation($snapshot, 'door_frame_door_model', 'frames', 'door_frame_id', $this->doorFrameIds);
+        $this->attachRelation($snapshot, 'door_model_hardware', 'hardware', 'hardware_id', $this->hardwareIds);
     }
 
     /**
@@ -446,7 +495,7 @@ class DoorCatalogSnapshotImporter
     /**
      * @param  array<string, mixed>  $entry
      */
-    private function resolveMediaOwner(array $entry): DoorModel|DoorVariant|Decor|GlassType|null
+    private function resolveMediaOwner(array $entry): DoorModel|DoorVariant|Decor|GlassType|Hardware|null
     {
         $ownerId = (int) $entry['owner_id'];
 
@@ -455,6 +504,7 @@ class DoorCatalogSnapshotImporter
             'door_variant' => $this->findTarget(DoorVariant::class, $this->doorVariantIds[$ownerId] ?? null),
             'decor' => $this->findTarget(Decor::class, $this->decorIds[$ownerId] ?? null),
             'glass_type' => $this->findTarget(GlassType::class, $this->glassTypeIds[$ownerId] ?? null),
+            'hardware' => $this->findTarget(Hardware::class, $this->hardwareIds[$ownerId] ?? null),
             default => null,
         };
     }

@@ -27,6 +27,8 @@ class SurchargeResource extends Resource
 
     protected static ?string $navigationLabel = 'Příplatky';
 
+    protected static ?int $navigationSort = 70;
+
     public static function getModelLabel(): string
     {
         return 'Příplatek';

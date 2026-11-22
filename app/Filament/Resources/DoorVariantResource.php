@@ -34,6 +34,8 @@ class DoorVariantResource extends Resource
 
     protected static ?string $navigationLabel = 'Varianty dveří';
 
+    protected static ?int $navigationSort = 20;
+
     public static function getModelLabel(): string
     {
         return 'Varianta dveří';

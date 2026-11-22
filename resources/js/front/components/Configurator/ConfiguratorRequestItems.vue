@@ -7,7 +7,10 @@ import type { UnitPriceBreakdown } from './utils'
 import {
   formatPieceCount,
   formatPrice,
+  formatSurchargePrice,
+  isSurcharge,
   itemLineTotal,
+  NO_SURCHARGE_LABEL,
   priceWithVat as calculatePriceWithVat,
   unitPriceBreakdown
 } from './utils'
@@ -71,18 +74,17 @@ const basePriceWithVatLabel = (item: InquiryItemDraft): string => {
 }
 
 // The surcharges are shown with VAT, matching the prominent price of the item, and an option that lowered the
-// price keeps its sign instead of pretending to be an addition.
-const surchargeAmountLabel = (amountWithoutVat: number): string => {
-  const gross = formatPrice(calculatePriceWithVat(Math.abs(amountWithoutVat), props.vatRate))
+// price keeps its sign instead of pretending to be an addition. A row that adds nothing is named instead of
+// printed as „+0 Kč“, so the disclosure never shows a zero amount.
+const surchargeAmountLabel = (amountWithoutVat: number): string =>
+  formatSurchargePrice(amountWithoutVat, props.vatRate)
 
-  return amountWithoutVat < 0 ? `-${gross}` : `+${gross}`
+const surchargesTotalWithoutVat = (item: InquiryItemDraft): number => {
+  return breakdownFor(item).lines.reduce((total, line) => total + line.amount, 0)
 }
 
-const surchargesTotalLabel = (item: InquiryItemDraft): string => {
-  const totalWithoutVat = breakdownFor(item).lines.reduce((total, line) => total + line.amount, 0)
-
-  return surchargeAmountLabel(totalWithoutVat)
-}
+const surchargesTotalLabel = (item: InquiryItemDraft): string =>
+  surchargeAmountLabel(surchargesTotalWithoutVat(item))
 
 const isSelected = (item: InquiryItemDraft): boolean => item.uid === props.selectedUid
 
@@ -206,7 +208,9 @@ const cardClass = (item: InquiryItemDraft): string => {
                  default: the base price is the first row inside it and the priced options follow. The summary
                  is always rendered, even when nothing was charged on top of the base price, because the base
                  price is part of the breakdown; only the extras are summed next to the heading, so the closed
-                 card stays compact and still says what the door itself costs. -->
+                 card stays compact and still says what the door itself costs. The sum of the extras can be zero
+                 even when the list is not empty (an option that lowered the price can cancel another one), so it
+                 is named rather than printed as „+0 Kč“. -->
             <div class="border-t border-white/10 pt-3">
               <details class="group">
                 <summary
@@ -234,14 +238,14 @@ const cardClass = (item: InquiryItemDraft): string => {
                   <!-- Beside the heading the visitor sees the sum of the extras only, explicitly labelled, so
                        the figure cannot be mistaken for the base price of the door. -->
                   <span
-                    v-if="breakdownFor(item).lines.length"
+                    v-if="isSurcharge(surchargesTotalWithoutVat(item))"
                     class="flex flex-wrap items-baseline gap-x-1.5"
                   >
                     <span class="text-white/45">Příplatky</span>
                     <span class="text-white/85">{{ surchargesTotalLabel(item) }}</span>
                     <span class="text-white/45">s DPH</span>
                   </span>
-                  <span v-else class="text-white/40">bez příplatků</span>
+                  <span v-else class="text-white/40">{{ NO_SURCHARGE_LABEL }}</span>
                 </summary>
 
                 <div class="mt-2 border-t border-white/10 pt-2">

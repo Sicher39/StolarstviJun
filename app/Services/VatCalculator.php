@@ -19,4 +19,15 @@ class VatCalculator
     {
         return round($priceWithoutVat * (1 + self::rate() / 100), 2);
     }
+
+    /**
+     * The configured rate as a label, for example "21 %". The administration shows it next to every
+     * calculated gross price, so no screen can claim a rate the calculation does not use.
+     */
+    public static function formattedRate(): string
+    {
+        $rate = rtrim(rtrim(number_format(self::rate(), 2, ',', ' '), '0'), ',');
+
+        return $rate.' %';
+    }
 }

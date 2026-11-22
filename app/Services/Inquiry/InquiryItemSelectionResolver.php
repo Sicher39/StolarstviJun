@@ -3,9 +3,11 @@
 namespace App\Services\Inquiry;
 
 use App\Models\Decor;
+use App\Models\DoorFrame;
 use App\Models\DoorModel;
 use App\Models\DoorVariant;
 use App\Models\GlassType;
+use App\Models\Hardware;
 
 /**
  * The catalog selection of one inquiry item, as the administration form shows it.
@@ -17,6 +19,10 @@ use App\Models\GlassType;
  *
  * The snapshot itself is never changed here. It stays the record of what the customer sent, while the
  * columns carry what the workshop currently quotes.
+ *
+ * The frame and the hardware of the „Ostatní“ step are read the same way, with one addition: an accessory
+ * is only filled when it is still active and still offered for the model of the item, because the item
+ * form refuses a pair the catalog does not offer.
  */
 class InquiryItemSelectionResolver
 {
@@ -60,6 +66,13 @@ class InquiryItemSelectionResolver
                 ?? $this->existingSnapshotId($snapshot, 'decor', Decor::class),
             'glass_type_id' => $this->intOrNull($fillData['glass_type_id'] ?? null)
                 ?? $this->existingSnapshotId($snapshot, 'glass_type', GlassType::class),
+            // The accessories of the „Ostatní“ step follow the same rule, with one addition: they also have
+            // to be offered for the model, because the form refuses an accessory of another model and an
+            // item filled with one could never be saved again.
+            'door_frame_id' => $this->intOrNull($fillData['door_frame_id'] ?? null)
+                ?? $this->snapshotAccessoryId($snapshot, 'door_frame', DoorFrame::class, $doorModelId),
+            'hardware_id' => $this->intOrNull($fillData['hardware_id'] ?? null)
+                ?? $this->snapshotAccessoryId($snapshot, 'hardware', Hardware::class, $doorModelId),
         ];
     }
 
@@ -109,5 +122,43 @@ class InquiryItemSelectionResolver
             ->whereKey($doorVariantId)
             ->where('door_model_id', $doorModelId)
             ->exists();
+    }
+
+    /**
+     * The accessory of one snapshot block, when the catalog still offers it for the model of the item.
+     *
+     * An id of an accessory is a foreign key, and the form refuses a pair the catalog does not offer, so
+     * an accessory that was deactivated or detached from the model in the meantime is dropped here
+     * instead of being hydrated into a field the item could never be saved with. Without a model the
+     * compatibility can not be decided at all, so nothing is filled either.
+     *
+     * @param  array<string, mixed>  $snapshot
+     * @param  class-string<DoorFrame|Hardware>  $accessory
+     */
+    private function snapshotAccessoryId(array $snapshot, string $block, string $accessory, ?int $doorModelId): ?int
+    {
+        if ($doorModelId === null) {
+            return null;
+        }
+
+        $section = $snapshot[$block] ?? null;
+
+        if (! is_array($section)) {
+            return null;
+        }
+
+        $id = $this->intOrNull($section['id'] ?? null);
+
+        if ($id === null) {
+            return null;
+        }
+
+        $isOffered = $accessory::query()
+            ->whereKey($id)
+            ->where('active', true)
+            ->whereHas('doorModels', fn ($query) => $query->whereKey($doorModelId))
+            ->exists();
+
+        return $isOffered ? $id : null;
     }
 }

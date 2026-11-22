@@ -3,12 +3,18 @@ import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import NavigationItem from './NavigationItem.vue'
 import { Link } from '@inertiajs/vue3'
 import ButtonLabel from '@/front/components/Buttons/ButtonLabel.vue'
+import ButtonMain from '@/front/components/Buttons/ButtonMain.vue'
 import { navLinks } from '@/front/components/Navigation/NavLinks'
 
 const open = ref(false)
 const menuOpen = () => {
   open.value = !open.value
 }
+
+// Kontakt is rendered on its own, because the desktop navigation puts the search icon and the configurator
+// call to action between it and the rest of the menu: ... Katalog, search icon, Konfigurátor, Kontakt.
+const primaryNavLinks = navLinks.filter((link) => link.route !== 'front.contact')
+const contactNavLink = navLinks.find((link) => link.route === 'front.contact') ?? null
 
 type SearchProduct = {
   id: number
@@ -147,8 +153,8 @@ onUnmounted(() => {
 
         <div class="hidden lg:flex w-full justify-end items-center">
           <NavigationItem
-            v-for="(link, index) in navLinks"
-            :key="index"
+            v-for="link in primaryNavLinks"
+            :key="link.route"
             :link="link.link"
             :title="link.title"
             :route-link="link.route"
@@ -177,6 +183,23 @@ onUnmounted(() => {
               />
             </svg>
           </button>
+
+          <!-- The configurator call to action sits directly between the search icon and the Kontakt item.
+               It is deliberately not part of `navLinks`, because the header renders it as a button while the
+               footer menu keeps its own plain link entry. -->
+          <Link
+            :href="route('front.configurator')"
+            class="group ml-4 mr-2 block w-[190px] shrink-0"
+          >
+            <ButtonMain>Konfigurátor</ButtonMain>
+          </Link>
+
+          <NavigationItem
+            v-if="contactNavLink"
+            :link="contactNavLink.link"
+            :title="contactNavLink.title"
+            :route-link="contactNavLink.route"
+          />
         </div>
 
         <div class="flex items-center lg:hidden text-white space-x-3 ">

@@ -3,19 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Models\Decor;
+use App\Models\DoorFrame;
 use App\Models\DoorModel;
 use App\Models\DoorVariant;
 use App\Models\GlassType;
+use App\Models\Hardware;
 use App\Models\InquiryItem;
 use App\Models\PreviewScene;
 use App\Models\PreviewSceneMaterial;
 use App\Models\Surcharge;
+use App\Services\Catalog\DecorTextureOrientationResolver;
 use App\Services\VatCalculator;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ConfiguratorController extends Controller
 {
+    public function __construct(private readonly DecorTextureOrientationResolver $decorTextureOrientations) {}
+
     public function __invoke(): Response
     {
         $doorModels = DoorModel::query()
@@ -25,8 +30,13 @@ class ConfiguratorController extends Controller
                 'decors' => fn ($query) => $query->where('active', true)->orderBy('id'),
                 'glasses' => fn ($query) => $query->where('active', true)->orderBy('name'),
                 'surcharges' => fn ($query) => $query->where('active', true)->orderBy('name'),
+                // The accessories of the „Ostatní“ step are offered per model; the catalogue order of the
+                // administration is what the visitor sees, so the two never disagree.
+                'frames' => fn ($query) => $query->where('door_frames.active', true)->orderBy('sort_order')->orderBy('name'),
+                'hardware' => fn ($query) => $query->where('hardware.active', true)->orderBy('sort_order')->orderBy('name'),
             ])
-            ->orderBy('name')
+            // The order of the step is the order of the catalog: foiled models first, veneered second.
+            ->orderedForConfigurator()
             ->get()
             ->map(function (DoorModel $doorModel): array {
                 // The published defaults are only honoured when they are still valid: the variant must belong to the
@@ -48,6 +58,7 @@ class ConfiguratorController extends Controller
                     'name' => $doorModel->name,
                     'slug' => $doorModel->slug,
                     'category' => $doorModel->category,
+                    'type' => $doorModel->type?->value,
                     'description' => $doorModel->description,
                     'base_price_without_vat' => (float) $doorModel->base_price_without_vat,
                     'base_price_with_vat' => VatCalculator::applyRate((float) $doorModel->base_price_without_vat),
@@ -88,6 +99,10 @@ class ConfiguratorController extends Controller
                             'code' => $decor->code,
                             'price_modifier' => (float) $decor->price_modifier,
                             'texture_image_url' => $this->mediaUrl($decor, 'texture_image'),
+                            // The renderer turns one of the two decor runs by a quarter turn, so it has to know
+                            // which way the grain of this texture runs. Published with the decor, because it is a
+                            // property of the uploaded source and not of the selected door.
+                            'texture_orientation' => $this->decorTextureOrientations->forDecor($decor)->value,
                             'preview_image_url' => $this->mediaUrl($decor, 'preview_image'),
                         ])
                         ->values()
@@ -111,6 +126,32 @@ class ConfiguratorController extends Controller
                             'name' => $surcharge->name,
                             'code' => $surcharge->code,
                             'price_without_vat' => (float) $surcharge->price_without_vat,
+                        ])
+                        ->values()
+                        ->all(),
+                    // The frame is described by its name, its system code and its net price. Its picture is
+                    // an optional illustration of the selector card, so the catalog can hide it without
+                    // removing the frame from the offer: a hidden picture is published as null and the
+                    // card falls back to the plain text layout.
+                    'frames' => $doorModel->frames
+                        ->map(fn (DoorFrame $doorFrame): array => [
+                            'id' => $doorFrame->id,
+                            'name' => $doorFrame->name,
+                            'code' => $doorFrame->code,
+                            'price_without_vat' => (float) $doorFrame->price_without_vat,
+                            'image_url' => $doorFrame->show_image ? $this->mediaUrl($doorFrame, 'image') : null,
+                        ])
+                        ->values()
+                        ->all(),
+                    'hardware' => $doorModel->hardware
+                        ->map(fn (Hardware $hardware): array => [
+                            'id' => $hardware->id,
+                            'name' => $hardware->name,
+                            'code' => $hardware->code,
+                            'price_without_vat' => (float) $hardware->price_without_vat,
+                            // The picture is the only media of the hardware, so it is the whole card of the
+                            // selector. It is a product illustration and is never drawn over the door.
+                            'image_url' => $this->mediaUrl($hardware, 'image'),
                         ])
                         ->values()
                         ->all(),

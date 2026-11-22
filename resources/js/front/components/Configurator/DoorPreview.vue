@@ -17,6 +17,7 @@ const props = defineProps<{
   canRenderDecorLayer: boolean
   selectedPreviewImageUrl: string | null
   selectedDecorImageUrl: string | null
+  selectedDecorTextureIsHorizontal: boolean
   selectedVariant: DoorVariant | null
   previewScene: PreviewScene | null
   selectedWall: PreviewSceneMaterial | null
@@ -128,6 +129,7 @@ const roomBehindGlassUrl = computed((): string | null => {
           v-if="canRenderDecorLayer && selectedDecorImageUrl && selectedVariant?.door_mask_url"
           :variant="selectedVariant"
           :decor-image-url="selectedDecorImageUrl"
+          :decor-texture-is-horizontal="selectedDecorTextureIsHorizontal"
           :glass-image-url="glassLayerImageUrl"
           :glass-opacity="selectedGlassOpacity"
           :mask-id-base="doorMaskId"

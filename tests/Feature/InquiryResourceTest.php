@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Filament\Resources\InquiryResource;
 use App\Filament\Resources\InquiryResource\Pages\ListInquiries;
 use App\Models\Decor;
+use App\Models\DoorFrame;
 use App\Models\DoorModel;
 use App\Models\DoorVariant;
 use App\Models\GlassType;
+use App\Models\Hardware;
 use App\Models\Inquiry;
 use App\Models\InquiryItem;
 use App\Models\Surcharge;
@@ -294,6 +296,11 @@ class InquiryResourceTest extends TestCase
         // The snapshots stay in the database, they are just never typed by hand again.
         $this->assertNotContains('configuration', $fieldNames);
         $this->assertNotContains('crm_payload', $fieldNames);
+
+        // The accessories are stored on the items, so the single door view of the inquiry has no column
+        // to bind them to and must not pretend it has one.
+        $this->assertNotContains('door_frame_id', $fieldNames);
+        $this->assertNotContains('hardware_id', $fieldNames);
     }
 
     public function test_the_status_field_offers_only_the_four_internal_statuses(): void
@@ -509,6 +516,8 @@ class InquiryResourceTest extends TestCase
             'door_variant_id',
             'decor_id',
             'glass_type_id',
+            'door_frame_id',
+            'hardware_id',
             'unit_price_without_vat',
             'price_without_vat',
             'price_with_vat',
@@ -796,6 +805,176 @@ class InquiryResourceTest extends TestCase
         $this->assertStringContainsString('source-reference.png', $preview['url']);
         $this->assertSame('Referenční obrázek varianty', $preview['label']);
         $this->assertNull($resolver->resolveSelection(null, null, null, null));
+    }
+
+    public function test_the_item_form_offers_the_frame_and_the_hardware_as_optional_selects(): void
+    {
+        $fields = [];
+
+        foreach (InquiryResource::itemFields() as $component) {
+            if ($component instanceof Field) {
+                $fields[$component->getName()] = $component;
+            }
+        }
+
+        foreach (['door_frame_id', 'hardware_id'] as $fieldName) {
+            $this->assertArrayHasKey($fieldName, $fields, 'Položka poptávky nenabízí pole '.$fieldName.'.');
+            $this->assertInstanceOf(Select::class, $fields[$fieldName], 'Pole '.$fieldName.' se vybírá z katalogu.');
+            // Both accessories are optional, exactly like in the configurator.
+            $this->assertFalse($fields[$fieldName]->isRequired());
+        }
+    }
+
+    public function test_the_accessory_selects_offer_only_the_active_accessories_of_the_model(): void
+    {
+        [$doorModel] = $this->catalog();
+        [$otherModel] = $this->catalog();
+
+        $frame = DoorFrame::factory()->pricedAt(150)->create();
+        $frame->doorModels()->attach($doorModel);
+
+        $inactiveFrame = DoorFrame::factory()->inactive()->create();
+        $inactiveFrame->doorModels()->attach($doorModel);
+
+        $foreignFrame = DoorFrame::factory()->create();
+        $foreignFrame->doorModels()->attach($otherModel);
+
+        $hardware = Hardware::factory()->pricedAt(300)->create();
+        $hardware->doorModels()->attach($doorModel);
+
+        $frameOptions = InquiryResource::doorFrameOptions($doorModel->id, null);
+
+        // Only the active frame of this very model is offered; the inactive and the foreign row are not.
+        $this->assertSame([$frame->id], array_keys($frameOptions));
+        $this->assertSame($frame->name, $frameOptions[$frame->id]);
+        $this->assertSame([$hardware->id], array_keys(InquiryResource::hardwareOptions($doorModel->id, null)));
+
+        // A stored value stays selectable, so the label of a retired row is still readable; the rule of the
+        // field refuses to save it again instead of letting the select drop it silently.
+        $withStoredValue = InquiryResource::doorFrameOptions($doorModel->id, $foreignFrame->id);
+
+        $this->assertSame($foreignFrame->name.' (mimo aktuální nabídku)', $withStoredValue[$foreignFrame->id]);
+
+        // Without a model the whole active catalog is offered, so a stored value is never lost before a
+        // model is picked.
+        $this->assertEqualsCanonicalizing(
+            [$frame->id, $foreignFrame->id],
+            array_keys(InquiryResource::doorFrameOptions(null, null)),
+        );
+    }
+
+    public function test_the_accessories_of_a_stored_item_are_read_from_its_snapshot_when_the_columns_are_empty(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+
+        $frame = DoorFrame::factory()->create();
+        $frame->doorModels()->attach($doorModel);
+
+        $hardware = Hardware::factory()->create();
+        $hardware->doorModels()->attach($doorModel);
+
+        $item = $this->inquiry($doorModel, $variant)->items()->create([
+            'position' => 1,
+            'name' => 'Dveře se zárubní',
+            'quantity' => 1,
+            'unit_price_without_vat' => 1650,
+            'configuration' => [
+                'door_model' => ['id' => $doorModel->id],
+                'door_variant' => ['id' => $variant->id],
+                'door_frame' => ['id' => $frame->id, 'name' => $frame->name],
+                'hardware' => ['id' => $hardware->id, 'name' => $hardware->name],
+            ],
+        ]);
+
+        $fillData = app(InquiryItemSelectionResolver::class)->withSnapshotSelection($item->attributesToArray());
+
+        $this->assertSame($frame->id, $fillData['door_frame_id']);
+        $this->assertSame($hardware->id, $fillData['hardware_id']);
+
+        // Once the model stops offering the frame, the snapshot id may not be pushed into the foreign key
+        // column: the item form would refuse the pair and the item could never be saved again.
+        $frame->doorModels()->detach($doorModel);
+
+        $fillData = app(InquiryItemSelectionResolver::class)->withSnapshotSelection($item->fresh()->attributesToArray());
+
+        $this->assertNull($fillData['door_frame_id']);
+        $this->assertSame($hardware->id, $fillData['hardware_id']);
+    }
+
+    public function test_the_price_per_piece_of_a_selection_is_priced_with_the_accessories_of_the_catalog(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+        [$otherModel] = $this->catalog();
+
+        $frame = DoorFrame::factory()->pricedAt(150)->create();
+        $frame->doorModels()->attach($doorModel);
+
+        $hardware = Hardware::factory()->pricedAt(300)->create();
+        $hardware->doorModels()->attach($doorModel);
+
+        $foreignHardware = Hardware::factory()->pricedAt(999)->create();
+        $foreignHardware->doorModels()->attach($otherModel);
+
+        $builder = app(InquiryItemBuilder::class);
+
+        // 1000 base + 200 variant + 150 frame + 300 hardware, all read from the catalog.
+        $this->assertEquals(1650.0, $builder->catalogUnitPrice(
+            $doorModel->id,
+            $variant->id,
+            null,
+            null,
+            [],
+            $frame->id,
+            $hardware->id,
+        ));
+
+        // An accessory of another model adds nothing, so a recalculation can never price something the
+        // catalog does not offer for the selection.
+        $this->assertEquals(1200.0, $builder->catalogUnitPrice(
+            $doorModel->id,
+            $variant->id,
+            null,
+            null,
+            [],
+            null,
+            $foreignHardware->id,
+        ));
+    }
+
+    public function test_the_accessories_of_a_request_are_labelled_for_the_list_table(): void
+    {
+        [$doorModel, $variant] = $this->catalog();
+
+        $frame = DoorFrame::factory()->create(['name' => 'Bezfalcová '.uniqid()]);
+        $frame->doorModels()->attach($doorModel);
+
+        $hardware = Hardware::factory()->create(['name' => 'Klika '.uniqid()]);
+        $hardware->doorModels()->attach($doorModel);
+
+        $inquiry = $this->inquiry($doorModel, $variant);
+        $this->item($inquiry)->forceFill([
+            'door_frame_id' => $frame->id,
+            'hardware_id' => $hardware->id,
+        ])->save();
+
+        $this->assertSame(
+            'Zárubeň: '.$frame->name.' · Kování: '.$hardware->name,
+            InquiryResource::accessoryLabels($inquiry->fresh()),
+        );
+
+        // An inquiry stored before the accessory columns existed keeps the selection in its snapshot.
+        $legacy = $this->inquiry($doorModel, $variant);
+        $legacy->forceFill(['configuration' => [
+            ...$this->configuration(),
+            'door_frame' => ['id' => 42, 'name' => 'Obložková', 'code' => 'FRM-0042'],
+            'hardware' => ['id' => 43, 'name' => 'Klika R', 'code' => 'HWD-0043'],
+        ]])->save();
+
+        $this->assertSame('Zárubeň: Obložková · Kování: Klika R', InquiryResource::accessoryLabels($legacy->fresh()));
+
+        // A request without either of them shows nothing at all instead of an invented selection.
+        $this->assertNull(InquiryResource::accessoryLabels($this->inquiry($doorModel, $variant)));
+        $this->assertNull(InquiryResource::accessoryLabels(null));
     }
 
     /**

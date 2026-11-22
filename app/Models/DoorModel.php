@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\DoorModelType;
 use App\Services\VatCalculator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -34,6 +36,7 @@ class DoorModel extends Model implements HasMedia
         'name',
         'slug',
         'category',
+        'type',
         'description',
         'base_price_without_vat',
         'default_variant_id',
@@ -77,6 +80,45 @@ class DoorModel extends Model implements HasMedia
         return $this->belongsToMany(Surcharge::class)->withTimestamps();
     }
 
+    /**
+     * Frame types this model may be configured with. The relation is maintained from the accessory,
+     * because the same frame is offered to many models.
+     */
+    public function frames(): BelongsToMany
+    {
+        return $this->belongsToMany(DoorFrame::class, 'door_frame_door_model')->withTimestamps();
+    }
+
+    /**
+     * Hardware this model may be configured with, maintained from the accessory as well.
+     */
+    public function hardware(): BelongsToMany
+    {
+        return $this->belongsToMany(Hardware::class, 'door_model_hardware')->withTimestamps();
+    }
+
+    /**
+     * Catalog order of the configurator: foiled models first, veneered second, then the models whose
+     * type has not been set yet, each group sorted by name. The ranks come from the enum, so the
+     * order is defined once and the listing cannot drift away from the labels.
+     */
+    public function scopeOrderedForConfigurator(Builder $query): void
+    {
+        $expression = 'CASE type';
+        $bindings = [];
+        $lastRank = 0;
+
+        foreach (DoorModelType::cases() as $type) {
+            $expression .= ' WHEN ? THEN '.$type->rank();
+            $bindings[] = $type->value;
+            $lastRank = max($lastRank, $type->rank());
+        }
+
+        $query
+            ->orderByRaw($expression.' ELSE '.($lastRank + 1).' END', $bindings)
+            ->orderBy('name');
+    }
+
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('preview_image')
@@ -102,6 +144,7 @@ class DoorModel extends Model implements HasMedia
         return [
             'base_price_without_vat' => 'decimal:2',
             'base_price_with_vat' => 'decimal:2',
+            'type' => DoorModelType::class,
             'default_variant_id' => 'integer',
             'default_decor_id' => 'integer',
             'active' => 'boolean',

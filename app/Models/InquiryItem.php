@@ -17,8 +17,8 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  *
  * Together with the prices the row keeps the `configuration` snapshot of the selection, so a later
  * change of the catalog can not rewrite what the customer actually ordered. The snapshot is never
- * written by the administration; the four catalog references live in their own columns, which is what
- * the edit form of the inquiry offers as selects.
+ * written by the administration; the catalog references live in their own columns, and the model,
+ * variant, decor and glass are what the edit form of the inquiry offers as selects.
  */
 class InquiryItem extends Model implements HasMedia
 {
@@ -50,6 +50,8 @@ class InquiryItem extends Model implements HasMedia
         'door_variant_id',
         'decor_id',
         'glass_type_id',
+        'door_frame_id',
+        'hardware_id',
         'unit_price_without_vat',
         'price_without_vat',
         'price_with_vat',
@@ -91,6 +93,23 @@ class InquiryItem extends Model implements HasMedia
     public function glassType(): BelongsTo
     {
         return $this->belongsTo(GlassType::class);
+    }
+
+    /**
+     * The frame chosen for this item, added together with the „Ostatní“ section. Nullable for the same
+     * reason as the references above: an older item keeps its selection in the snapshot only.
+     */
+    public function doorFrame(): BelongsTo
+    {
+        return $this->belongsTo(DoorFrame::class);
+    }
+
+    /**
+     * The hardware chosen for this item, nullable for the same reason as the frame.
+     */
+    public function hardware(): BelongsTo
+    {
+        return $this->belongsTo(Hardware::class);
     }
 
     public function registerMediaCollections(): void
@@ -152,6 +171,8 @@ class InquiryItem extends Model implements HasMedia
             'door_variant_id' => 'integer',
             'decor_id' => 'integer',
             'glass_type_id' => 'integer',
+            'door_frame_id' => 'integer',
+            'hardware_id' => 'integer',
             'unit_price_without_vat' => 'decimal:2',
             'price_without_vat' => 'decimal:2',
             'price_with_vat' => 'decimal:2',

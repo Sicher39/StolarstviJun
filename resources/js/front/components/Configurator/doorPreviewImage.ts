@@ -8,9 +8,13 @@ import type { DoorVariant } from './types'
  *
  *   1. the glass texture, cropped to the door leaf and faded by the glass opacity,
  *   2. the frame base image,
- *   3. the frame decor - the vertical and the horizontal run of the decor texture,
- *   4. the door decor - the vertical and the horizontal run of the decor texture,
+ *   3. the frame decor - the vertical run on the side jambs and the horizontal run on the head piece,
+ *   4. the door decor - the vertical run over the whole leaf, its moulded strips and solid stiles included,
  *   5. the depth, construction and handle overlays of the variant.
+ *
+ * The vertical run repeats in mirror: the tile below a tile is that tile turned upside down about the edge the
+ * two share, so the grain folds back over the same wood instead of jumping to the first row of the texture. The
+ * run across the head piece repeats the single tile and is not mirrored.
  *
  * The room is deliberately left out: no wall, no floor, no scene base, no foreground, no doorway depth and
  * no interior behind the glass. Nothing about the visitor is drawn either, so the file carries no personal
@@ -37,10 +41,19 @@ const FALLBACK_CANVAS_WIDTH = 426
 const FALLBACK_CANVAS_HEIGHT = 900
 const DOOR_LEAF_CLIP = { x: 50, y: 54, width: 327, height: 786 }
 const FRAME_HEADER_HEIGHT = 54
-const HORIZONTAL_DECOR_TILE_WIDTH = 540
-const HORIZONTAL_DECOR_TILE_HEIGHT = 180
-const VERTICAL_DECOR_TILE_WIDTH = 180
-const VERTICAL_DECOR_TILE_HEIGHT = 180
+// The uploaded decor texture is a square close-up, so both runs share one square tile: on a square source the
+// `slice` crop removes nothing, the leaf, the head piece and the side jambs are drawn at one scale, and the
+// square tile repeats once per 540 canvas units instead of once per 180 as a wide band did. Kept in sync with
+// `decorTileSize` of `ConfiguratorDoorLayers.vue`, so the PNG and the live preview tile identically.
+const DECOR_TILE_SIZE = 540
+// The downwards run repeats a mirror pair of the tile, so one period of the pattern is two tiles and never depends
+// on the height of the canvas. Kept in sync with `decorMirrorPatternHeight` of `ConfiguratorDoorLayers.vue`, so the
+// PNG and the live preview repeat in exactly the same period, at any size of the variant.
+const DECOR_MIRROR_PATTERN_HEIGHT = DECOR_TILE_SIZE * 2
+// The lower tile of the mirror pair is the tile above it reflected in their shared edge: the translate equals the
+// height of the whole pair and the quarter turn of an across source stays innermost, exactly like the transform of
+// the live preview.
+const MIRRORED_TILE_TRANSFORM = `translate(0 ${DECOR_MIRROR_PATTERN_HEIGHT}) scale(1 -1)`
 
 // The server accepts at most 2000 px per edge and 5 MB, a 1200 px long edge keeps the PNG well inside.
 const TARGET_LONG_EDGE = 1200
@@ -49,6 +62,9 @@ const MAX_SCALE = 2
 export interface DoorPreviewCompositeInput {
   variant: DoorVariant | null
   decorTextureUrl: string | null
+  // The direction the grain runs in the uploaded texture: see `decorTextureIsHorizontal()` of `utils.ts`. The
+  // composed PNG turns the same run as the live preview, so both always show the same door.
+  decorTextureIsHorizontal: boolean
   glassTextureUrl: string | null
   glassOpacity: number
 }
@@ -69,6 +85,7 @@ export interface DoorPreviewLayers {
   constructionOverlay: string | null
   handleOverlay: string | null
   decorTexture: string | null
+  decorTextureIsHorizontal: boolean
   glassTexture: string | null
 }
 
@@ -94,6 +111,31 @@ const imageTag = (href: string, attributes: Record<string, string | number>): st
 
   return `<image href="${href}" xlink:href="${href}" ${serialized} />`
 }
+
+/**
+ * One tile of the decor texture. The transform is left out for a tile that needs no quarter turn, so such a tile
+ * carries no transform attribute at all; the mirrored tile of a run always carries its reflection.
+ */
+const decorTileTag = (texture: string, transform: string | null): string => {
+  const attributes: Record<string, string | number> = {
+    width: DECOR_TILE_SIZE,
+    height: DECOR_TILE_SIZE,
+    preserveAspectRatio: 'xMidYMid slice'
+  }
+
+  if (transform !== null) {
+    attributes.transform = transform
+  }
+
+  return imageTag(texture, attributes)
+}
+
+/**
+ * The transform of the mirrored tile: the reflection in the edge shared with the tile above it, applied on top of
+ * whatever turn the run needs. A run that needs no turn keeps the reflection alone.
+ */
+const mirroredTileTransform = (transform: string | null): string =>
+  transform === null ? MIRRORED_TILE_TRANSFORM : `${MIRRORED_TILE_TRANSFORM} ${transform}`
 
 // The masks are luminance masks of the uploaded PNGs, exactly like the ones of the live preview.
 const maskTag = (id: string, href: string, width: number, height: number): string => {
@@ -165,23 +207,29 @@ export const buildDoorPreviewSvg = (layers: DoorPreviewLayers): string => {
     )
 
     if (layers.decorTexture !== null) {
-      const horizontalTile = imageTag(layers.decorTexture, {
-        width: HORIZONTAL_DECOR_TILE_WIDTH,
-        height: HORIZONTAL_DECOR_TILE_HEIGHT,
-        preserveAspectRatio: 'xMidYMid slice'
-      })
-      const verticalTile = imageTag(layers.decorTexture, {
-        width: height,
-        height: VERTICAL_DECOR_TILE_HEIGHT,
-        preserveAspectRatio: 'xMidYMid slice',
-        transform: `translate(${VERTICAL_DECOR_TILE_WIDTH} 0) rotate(90)`
-      })
+      // Both runs are the very same square tile and differ only in the direction of the grain. One of them is
+      // drawn straight and the other turned by a quarter turn, which swaps the two axes; which one is straight
+      // depends on the source, so the leaf and the jambs always keep the grain downwards and the head piece
+      // across - exactly like the live preview. The translate equals the tile size, so the turned tile covers
+      // the square tile exactly, and both runs share one crop, one scale and one pattern origin.
+      const quarterTurn = `translate(${DECOR_TILE_SIZE} 0) rotate(90)`
+      const verticalTileTransform = layers.decorTextureIsHorizontal ? quarterTurn : null
+      const horizontalTileTransform = layers.decorTextureIsHorizontal ? null : quarterTurn
 
+      // The head piece repeats the single tile: one period of the pattern is one tile.
       defs.push(
-        `<pattern id="horizontal-decor-pattern" width="${HORIZONTAL_DECOR_TILE_WIDTH}" height="${HORIZONTAL_DECOR_TILE_HEIGHT}" patternUnits="userSpaceOnUse">${horizontalTile}</pattern>`
+        `<pattern id="horizontal-decor-pattern" x="0" y="0" width="${DECOR_TILE_SIZE}" height="${DECOR_TILE_SIZE}" patternUnits="userSpaceOnUse">${decorTileTag(layers.decorTexture, horizontalTileTransform)}</pattern>`
       )
+      // The leaf and the jambs repeat a mirror pair, so one period of the pattern is two tiles: the upper tile is
+      // drawn as it is and the lower one is the same tile reflected in the edge they share. Both tiles of the pair
+      // carry the same turn, so an across source is turned before it is reflected. Because the pair repeats as a
+      // whole, a canvas that ends inside the lower half of the pair only shows part of it and the next pair still
+      // starts seamlessly - the period never has to match the canvas height.
       defs.push(
-        `<pattern id="vertical-decor-pattern" width="${VERTICAL_DECOR_TILE_WIDTH}" height="${height}" patternUnits="userSpaceOnUse">${verticalTile}</pattern>`
+        `<pattern id="vertical-decor-pattern" x="0" y="0" width="${DECOR_TILE_SIZE}" height="${DECOR_MIRROR_PATTERN_HEIGHT}" patternUnits="userSpaceOnUse">` +
+          `${decorTileTag(layers.decorTexture, verticalTileTransform)}` +
+          `${decorTileTag(layers.decorTexture, mirroredTileTransform(verticalTileTransform))}` +
+          `</pattern>`
       )
     }
   }
@@ -224,6 +272,10 @@ export const buildDoorPreviewSvg = (layers: DoorPreviewLayers): string => {
       )
     }
 
+    // The leaf carries the grain downwards over its whole area, the moulded strips and the solid stiles
+    // included, so both leaf zones are filled with the vertical run and the grain never changes direction on the
+    // leaf. The zones only say which part of the leaf is textured, never in which direction. The leaf and the side
+    // jambs draw the same mirrored pattern from the same origin, so their mirror pairs stay in phase.
     if (splitDoorDecor) {
       body.push(decorRectTag(width, height, 'vertical-decor-pattern', 'door-vertical-decor-mask'))
     } else if (layers.doorMask !== null) {
@@ -231,9 +283,7 @@ export const buildDoorPreviewSvg = (layers: DoorPreviewLayers): string => {
     }
 
     if (splitDoorDecor) {
-      body.push(
-        decorRectTag(width, height, 'horizontal-decor-pattern', 'door-horizontal-decor-mask')
-      )
+      body.push(decorRectTag(width, height, 'vertical-decor-pattern', 'door-horizontal-decor-mask'))
     }
   }
 
@@ -400,6 +450,7 @@ export const composeDoorPreviewPng = async (
     constructionOverlay: resolve(sources.constructionOverlay),
     handleOverlay: resolve(sources.handleOverlay),
     decorTexture: resolve(sources.decorTexture),
+    decorTextureIsHorizontal: input.decorTextureIsHorizontal,
     glassTexture: resolve(sources.glassTexture)
   })
 

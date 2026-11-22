@@ -91,6 +91,10 @@ class ConfiguratorInquiryController extends Controller
             'decor' => $itemSnapshots[0]['decor'],
             'glass_type' => $itemSnapshots[0]['glass_type'],
             'surcharges' => $itemSnapshots[0]['surcharges'],
+            // The accessories of the „Ostatní“ step follow the same rule: the first door describes them, and a
+            // request sent before the step existed carries null instead of a made up selection.
+            'door_frame' => $itemSnapshots[0]['door_frame'],
+            'hardware' => $itemSnapshots[0]['hardware'],
             // The breakdown of the first door travels with the same view, so the price in the single door
             // section of the administration is explained by the amounts that were charged.
             'price_breakdown' => $itemSnapshots[0]['price_breakdown'],
@@ -170,6 +174,8 @@ class ConfiguratorInquiryController extends Controller
                     'decor' => $firstPosition['decor']?->name,
                     'glass_type' => $firstPosition['glass_type']?->name,
                     'surcharges' => $this->surchargeNames($positions),
+                    'door_frame' => $firstPosition['door_frame']?->name,
+                    'hardware' => $firstPosition['hardware']?->name,
                     'items' => array_map(
                         fn (array $position): array => [
                             'name' => $position['attributes']['name'],
@@ -219,6 +225,8 @@ class ConfiguratorInquiryController extends Controller
                 'items.*.door_variant_id' => ['required', 'exists:door_variants,id'],
                 'items.*.decor_id' => ['nullable', 'exists:decors,id'],
                 'items.*.glass_type_id' => ['nullable', 'exists:glass_types,id'],
+                'items.*.door_frame_id' => ['nullable', 'exists:door_frames,id'],
+                'items.*.hardware_id' => ['nullable', 'exists:hardware,id'],
                 'items.*.surcharge_ids' => ['array'],
                 'items.*.surcharge_ids.*' => ['integer', 'distinct', 'exists:surcharges,id'],
                 'items.*.door_preview' => $this->previewRules($previewInspector),
@@ -231,6 +239,8 @@ class ConfiguratorInquiryController extends Controller
             'door_variant_id' => ['required', 'exists:door_variants,id'],
             'decor_id' => ['nullable', 'exists:decors,id'],
             'glass_type_id' => ['nullable', 'exists:glass_types,id'],
+            'door_frame_id' => ['nullable', 'exists:door_frames,id'],
+            'hardware_id' => ['nullable', 'exists:hardware,id'],
             'surcharge_ids' => ['array'],
             'surcharge_ids.*' => ['integer', 'distinct', 'exists:surcharges,id'],
             // The illustration of the chosen door that the browser composed right before submitting. It
@@ -281,6 +291,12 @@ class ConfiguratorInquiryController extends Controller
             'items.*.quantity.integer' => 'Počet kusů musí být celé číslo.',
             'items.*.quantity.min' => 'Počet kusů musí být alespoň 1.',
             'items.*.quantity.max' => 'U jedné položky lze poptat nejvýše '.InquiryItem::MAX_QUANTITY_PER_ITEM.' kusů.',
+            // The compatibility of an accessory is decided by the catalog and checked again while the item is
+            // built; these messages only explain a row that disappeared in the meantime.
+            'items.*.door_frame_id.exists' => 'Vybraná zárubeň není dostupná.',
+            'items.*.hardware_id.exists' => 'Vybrané kování není dostupné.',
+            'door_frame_id.exists' => 'Vybraná zárubeň není dostupná.',
+            'hardware_id.exists' => 'Vybrané kování není dostupné.',
         ];
 
         foreach (self::PREVIEW_MESSAGES as $rule => $message) {
@@ -306,6 +322,8 @@ class ConfiguratorInquiryController extends Controller
             'door_variant_id' => $validated['door_variant_id'],
             'decor_id' => $validated['decor_id'] ?? null,
             'glass_type_id' => $validated['glass_type_id'] ?? null,
+            'door_frame_id' => $validated['door_frame_id'] ?? null,
+            'hardware_id' => $validated['hardware_id'] ?? null,
             'surcharge_ids' => $validated['surcharge_ids'] ?? [],
         ];
     }

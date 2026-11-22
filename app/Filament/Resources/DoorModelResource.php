@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Enums\DoorModelType;
 use App\Filament\Resources\DoorModelResource\Pages\CreateDoorModel;
 use App\Filament\Resources\DoorModelResource\Pages\EditDoorModel;
 use App\Filament\Resources\DoorModelResource\Pages\ListDoorModels;
@@ -37,6 +38,8 @@ class DoorModelResource extends Resource
 
     protected static ?string $navigationLabel = 'Modely dveří';
 
+    protected static ?int $navigationSort = 10;
+
     public static function getModelLabel(): string
     {
         return 'Model dveří';
@@ -58,6 +61,12 @@ class DoorModelResource extends Resource
                 TextInput::make('category')
                     ->label('Kategorie')
                     ->maxLength(255),
+                Select::make('type')
+                    ->label('Typ')
+                    ->options(DoorModelType::options())
+                    ->helperText('Foliové modely se v konfigurátoru nabízejí první, dýhované po nich.')
+                    ->required()
+                    ->default(DoorModelType::Foiled->value),
                 Textarea::make('description')
                     ->label('Popis')
                     ->rows(5)
@@ -72,7 +81,7 @@ class DoorModelResource extends Resource
                     ->live()
                     ->afterStateUpdated(fn (Set $set, mixed $state): mixed => $set('base_price_with_vat', VatCalculator::applyRate((float) $state))),
                 TextInput::make('base_price_with_vat')
-                    ->label(fn (): string => 'Základní cena s DPH ('.self::vatRateLabel().')')
+                    ->label(fn (): string => 'Základní cena s DPH ('.VatCalculator::formattedRate().')')
                     ->numeric()
                     ->disabled()
                     ->dehydrated(false),
@@ -176,13 +185,17 @@ class DoorModelResource extends Resource
                     ->label('Kategorie')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('type')
+                    ->label('Typ')
+                    ->state(fn (DoorModel $record): string => $record->type?->label() ?? '—')
+                    ->sortable(),
                 TextColumn::make('base_price_without_vat')
                     ->label('Cena bez DPH')
                     ->money('CZK', divideBy: 1)
                     ->alignEnd()
                     ->sortable(),
                 TextColumn::make('base_price_with_vat')
-                    ->label(fn (): string => 'Cena s DPH ('.self::vatRateLabel().')')
+                    ->label(fn (): string => 'Cena s DPH ('.VatCalculator::formattedRate().')')
                     ->state(fn (DoorModel $record): float => VatCalculator::applyRate((float) $record->base_price_without_vat))
                     ->money('CZK', divideBy: 1)
                     ->alignEnd()
@@ -210,16 +223,6 @@ class DoorModelResource extends Resource
     public static function getRelations(): array
     {
         return [];
-    }
-
-    /**
-     * Formatted VAT rate used in field and column labels.
-     */
-    private static function vatRateLabel(): string
-    {
-        $rate = rtrim(rtrim(number_format(VatCalculator::rate(), 2, ',', ' '), '0'), ',');
-
-        return $rate.' %';
     }
 
     public static function getPages(): array

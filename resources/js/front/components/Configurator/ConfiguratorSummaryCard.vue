@@ -4,6 +4,8 @@ defineProps<{
   selectedVariantLabel: string | null
   selectedDecorName: string | null
   selectedGlassName: string | null
+  selectedFrameName: string | null
+  selectedHardwareName: string | null
   selectedSurchargeNames: string[]
 }>()
 </script>
@@ -25,6 +27,15 @@ defineProps<{
       <div class="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
         <span>Sklo</span>
         <span class="text-right text-white">{{ selectedGlassName ?? 'Bez skla' }}</span>
+      </div>
+      <!-- The accessories of the „Ostatní“ step are optional, so an empty selection is named instead of a dash. -->
+      <div class="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
+        <span>Zárubeň</span>
+        <span class="text-right text-white">{{ selectedFrameName ?? 'Bez zárubně' }}</span>
+      </div>
+      <div class="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
+        <span>Kování</span>
+        <span class="text-right text-white">{{ selectedHardwareName ?? 'Bez kování' }}</span>
       </div>
       <div class="flex items-center justify-between gap-4">
         <span>Příplatky</span>

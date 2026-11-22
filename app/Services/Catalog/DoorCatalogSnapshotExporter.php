@@ -6,6 +6,7 @@ use App\Models\Decor;
 use App\Models\DoorModel;
 use App\Models\DoorVariant;
 use App\Models\GlassType;
+use App\Models\Hardware;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -144,7 +145,7 @@ class DoorCatalogSnapshotExporter
             $modelSlugs[$slug] = true;
         }
 
-        foreach (['decors', 'glass_types', 'surcharges'] as $table) {
+        foreach (['decors', 'glass_types', 'surcharges', 'door_frames', 'hardware'] as $table) {
             $codes = [];
 
             foreach ($tables[$table] as $row) {
@@ -222,7 +223,7 @@ class DoorCatalogSnapshotExporter
     }
 
     /**
-     * The snapshot promises to carry every owned media layer of the four catalog models. A collection
+     * The snapshot promises to carry every owned media layer of the catalog models. A collection
      * added to a model without being listed for the transfer would be left behind silently, so the
      * export refuses to run instead of producing an incomplete bundle.
      */
@@ -234,6 +235,7 @@ class DoorCatalogSnapshotExporter
             'door_variant' => new DoorVariant(),
             'decor' => new Decor(),
             'glass_type' => new GlassType(),
+            'hardware' => new Hardware(),
         ];
 
         foreach ($models as $ownerType => $owner) {
@@ -251,10 +253,10 @@ class DoorCatalogSnapshotExporter
     }
 
     /**
-     * Only the four catalog models are yielded, together with the stable key that identifies them on
-     * the target installation.
+     * Only the catalog models are yielded, together with the stable key that identifies them on the
+     * target installation.
      *
-     * @return iterable<int, array{0: DoorModel|DoorVariant|Decor|GlassType, 1: string, 2: array<string, string>}>
+     * @return iterable<int, array{0: DoorModel|DoorVariant|Decor|GlassType|Hardware, 1: string, 2: array<string, string>}>
      */
     private function mediaOwners(): iterable
     {
@@ -281,6 +283,10 @@ class DoorCatalogSnapshotExporter
 
         foreach (GlassType::query()->with('media')->orderBy('id')->lazy(100) as $glassType) {
             yield [$glassType, 'glass_type', ['code' => (string) $glassType->code]];
+        }
+
+        foreach (Hardware::query()->with('media')->orderBy('id')->lazy(100) as $hardware) {
+            yield [$hardware, 'hardware', ['code' => (string) $hardware->code]];
         }
     }
 

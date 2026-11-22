@@ -206,6 +206,21 @@ return [
             'structured_data' => null,
         ],
 
+        'front.catalog' => [
+            'label' => 'Katalog',
+            'title' => 'Katalog – modely a provedení ze dřeva',
+            'description' => 'Katalog dveří a zakázkové výroby ze dřeva: modely, dekory, skla i kování. Přehled provedení, ze kterých si vyberete, a možnost poptat výrobu na míru.',
+            'keywords' => 'katalog dveří, modely dveří, dekory dveří, kování, dveře na míru katalog',
+            'robots' => 'index,follow',
+            'og_type' => 'website',
+            'in_sitemap' => true,
+            'schema_type' => 'CollectionPage',
+            'aeo_summary' => 'Katalog shrnuje modely a provedení, která dílna vyrábí: typy dveří, dekory, skla a kování. Z vybraného provedení vychází poptávka zakázky na míru.',
+            'aeo_search_intent' => 'Transakční – prochází nabídku modelů a provedení a hledá, ze kterých lze vybírat.',
+            'aeo_entities' => ['katalog dveří', 'modely dveří', 'dekory', 'kování'],
+            'structured_data' => null,
+        ],
+
         'front.contact' => [
             'label' => 'Kontakt',
             'title' => 'Kontakt – stolařství Zastávka u Brna',
